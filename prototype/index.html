@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WordShip — 동작 검증 프로토타입</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="bar">
+  <h1>WordShip <span class="tag">0단계 · 실시간</span></h1>
+  <div class="bar-right">
+    <label>시드 <input id="seed" type="text" size="9" placeholder="랜덤"></label>
+    <select id="dictSel">
+      <option value="permissive">허용 사전 (초성만)</option>
+      <option value="stub">스텁 사전 (엄격)</option>
+    </select>
+    <button id="btnNew" class="primary">새 게임</button>
+    <button id="btnTests">자가 검증</button>
+  </div>
+</header>
+
+<main>
+  <section class="boardWrap">
+    <div class="boardHead">
+      <span id="viewLabel">P1 시점</span>
+      <span class="spacer"></span>
+      <label class="chk"><input type="checkbox" id="omni"> 전지 시점</label>
+    </div>
+    <div class="boardScroll">
+      <div id="board" class="board"></div>
+    </div>
+    <div class="legend">
+      <span><i class="sw fog"></i>미탐색</span>
+      <span><i class="sw known"></i>초성 판명</span>
+      <span><i class="sw mine"></i>아군</span>
+      <span><i class="sw contact"></i>접촉</span>
+      <span><i class="sw ghost"></i>이탈(?)</span>
+      <span><i class="sw wreck"></i>잔해</span>
+      <span><i class="sw exposed"></i>피탐</span>
+      <span><i class="sw landing"></i>25행(상륙)</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="status" class="status"></div>
+
+    <div id="clockRow" class="row clock hidden">
+      <button id="btnPause" class="primary">⏸ 일시정지</button>
+      <span class="seg">속도
+        <button class="sp on" data-sp="1">1×</button><button class="sp" data-sp="2">2×</button><button class="sp" data-sp="4">4×</button>
+      </span>
+      <span class="seg">조작
+        <button class="pc on" data-pc="P1">P1</button><button class="pc" data-pc="P2">P2</button>
+      </span>
+      <span class="seg">봇
+        <label class="chk"><input type="checkbox" id="bot1"> P1</label>
+        <label class="chk"><input type="checkbox" id="bot2" checked> P2</label>
+      </span>
+    </div>
+
+    <div id="hint" class="hint"></div>
+
+    <div id="setupPanel" class="block">
+      <h2>준비 페이즈</h2>
+      <div class="row">
+        <button id="btnAuto1">P1 자동 배치</button>
+        <button id="btnAuto2">P2 자동 배치</button>
+        <button id="btnAutoAll" class="primary">양측 자동 배치</button>
+      </div>
+      <div id="setupFleet" class="fleet"></div>
+      <div class="row">
+        <input id="setupWord" type="text" placeholder="함명" size="10">
+        <button id="btnSuggest2">자동 단어</button>
+        <button id="btnPlace" class="primary">배치</button>
+      </div>
+      <button id="btnStart" class="primary wide">전투 시작</button>
+    </div>
+
+    <div id="battlePanel" class="block hidden">
+      <h2>행동</h2>
+      <div class="row acts">
+        <button data-act="move">이동 <b>3</b><span class="keyhint">1</span></button>
+        <button data-act="scan">탐지 <b>1</b><span class="keyhint">2</span></button>
+        <button data-act="identify">식별 <b>2</b><span class="keyhint">3</span></button>
+        <button data-act="fire">포격 <b>1</b><span class="keyhint">4</span></button>
+      </div>
+      <div id="dirRow" class="row dirs hidden">
+        <button data-dir="NW">↖</button><button data-dir="N">↑</button><button data-dir="NE">↗</button>
+        <button data-dir="Wd">←</button><span class="dirmid">WASD<br>QEZC</span><button data-dir="E">→</button>
+        <button data-dir="SW">↙</button><button data-dir="S">↓</button><button data-dir="SE">↘</button>
+      </div>
+      <div id="wordRow" class="row hidden">
+        <input id="word" type="text" placeholder="단어" size="10">
+        <button id="btnSuggest">자동 단어</button>
+        <button id="btnExec" class="primary">실행</button>
+      </div>
+      <div class="row">
+        <button id="btnCancel">선택 취소 (Esc)</button>
+        <span class="keyhint">Tab 함선 전환 · Space 일시정지</span>
+      </div>
+      <h2>함대</h2>
+      <div id="fleet" class="fleet"></div>
+    </div>
+
+    <h2>로그</h2>
+    <div id="log" class="log"></div>
+  </section>
+</main>
+
+<div id="testsOverlay" class="overlay hidden">
+  <div class="testbox">
+    <h2>자가 검증 <span id="testSummary"></span></h2>
+    <div id="testList"></div>
+    <button id="btnCloseTests" class="primary">닫기</button>
+  </div>
+</div>
+
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+<script src="src/tests.js"></script>
+<script src="src/ui.js"></script>
+</body>
+</html>

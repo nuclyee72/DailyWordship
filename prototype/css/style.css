@@ -1,0 +1,151 @@
+:root{
+  --bg:#11151c; --bg2:#171d26; --line:#2a3340; --line2:#3a4756;
+  --fg:#d8e0ea; --dim:#7d8b9c; --faint:#4a5766;
+  --fog:#1b212b; --known:#232c38;
+  --mine:#1d6f8a; --mine2:#2a9cc0;
+  --contact:#c8701c; --ghost:#6b5a3a;
+  --wreck:#4a3a5c; --exposed:#8a3030;
+  --land:#2f6d46; --ok:#3fa96b; --bad:#d4564c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+  font:13px/1.5 "Pretendard","Malgun Gothic","맑은 고딕",system-ui,sans-serif}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:8px 14px;background:var(--bg2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar h1{font-size:15px;margin:0;letter-spacing:.02em}
+.tag{font-size:11px;color:var(--dim);font-weight:400;margin-left:6px}
+.bar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+button{background:var(--bg2);color:var(--fg);border:1px solid var(--line2);
+  border-radius:4px;padding:5px 10px;cursor:pointer;font:inherit}
+button:hover:not(:disabled){background:var(--line);border-color:#55657a}
+button:disabled{opacity:.35;cursor:default}
+button.primary{background:#20465c;border-color:#2f6d8c}
+button.primary:hover:not(:disabled){background:#2a5a75}
+button.on{background:#2f6d8c;border-color:#4b9ec4}
+button.wide{width:100%;margin-top:8px}
+input,select{background:var(--fog);color:var(--fg);border:1px solid var(--line2);
+  border-radius:4px;padding:4px 7px;font:inherit}
+label{color:var(--dim)}
+h2{font-size:12px;color:var(--dim);margin:14px 0 6px;font-weight:600;letter-spacing:.06em}
+
+main{display:flex;gap:16px;padding:14px;align-items:flex-start}
+.boardWrap{flex:0 0 auto}
+.boardHead{display:flex;gap:14px;align-items:center;margin-bottom:6px;font-size:12px}
+.chk{display:flex;gap:4px;align-items:center;cursor:pointer}
+.boardScroll{max-height:calc(100vh - 150px);overflow:auto;border:1px solid var(--line);
+  border-radius:6px;background:var(--bg2);padding:6px}
+.board{display:grid;grid-template-columns:24px repeat(10,30px);gap:2px}
+
+.cell,.hdr{height:30px;display:flex;align-items:center;justify-content:center;
+  border-radius:3px;font-size:14px;user-select:none}
+.hdr{color:var(--faint);font-size:10px;height:18px}
+.rowh{color:var(--faint);font-size:10px;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:4px;height:30px}
+
+.cell{background:var(--fog);border:1px solid #222a35;color:var(--faint);cursor:pointer;position:relative}
+.cell.known{background:var(--known);color:#8fa0b4;border-color:#2c3644}
+.cell.syl{color:var(--fg);font-weight:600}
+.cell.mine{background:var(--mine);border-color:var(--mine2);color:#eaf6fb}
+.cell.enemy{background:#7a2f3a;border-color:#a34551;color:#fbeaec}
+.cell.contact{background:var(--contact);border-color:#e08b2e;color:#1a1208;font-weight:600}
+.cell.ghost{background:var(--ghost);border-color:#8a7648;color:#fdf3dd}
+.cell.wreck{background:var(--wreck);border-color:#7a5f96;color:#ecdcff;font-weight:600}
+.cell.exposed{box-shadow:inset 0 0 0 2px var(--exposed)}
+.cell.ident::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;color:#ff5b4f;font-size:22px;font-weight:700;opacity:.85}
+.cell.landing{border-bottom:3px solid var(--land)}
+.cell.home{border-top:1px dashed #33506b}
+.cell.sel{outline:2px solid #ffd479;outline-offset:-1px;z-index:2}
+.cell.anchor{outline:2px solid #ffffff;outline-offset:-1px;z-index:3}
+.cell:hover{filter:brightness(1.25)}
+
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--dim)}
+.legend span{display:flex;gap:4px;align-items:center}
+.sw{width:11px;height:11px;border-radius:2px;display:inline-block;border:1px solid #2c3644}
+.sw.fog{background:var(--fog)} .sw.known{background:var(--known)} .sw.mine{background:var(--mine)}
+.sw.contact{background:var(--contact)} .sw.ghost{background:var(--ghost)}
+.sw.wreck{background:var(--wreck)} .sw.exposed{background:var(--fog);box-shadow:inset 0 0 0 2px var(--exposed)}
+.sw.landing{background:var(--land)}
+
+.panel{flex:1 1 360px;min-width:320px;max-width:520px}
+/* .hidden 는 어떤 display 규칙보다도 이겨야 한다.
+   .overlay/.row/.dirs 가 아래쪽에 있어 특정도가 같으면 순서로 지기 때문. */
+.hidden,.block.hidden{display:none!important}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}
+.acts button b{color:#ffd479;font-weight:600}
+.dirs{display:grid;grid-template-columns:repeat(3,36px);gap:4px;justify-content:start}
+.dirs button{padding:4px 0}
+.dirmid{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:10px}
+
+.status{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:9px 11px;
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.status b{color:#ffd479}
+.status .over{color:var(--ok);font-weight:700}
+.hint{margin:8px 0;padding:8px 11px;border-radius:6px;background:#1a2430;
+  border-left:3px solid #3f7fa5;color:#b9cadb;min-height:34px}
+.hint.err{background:#2a1a1c;border-left-color:var(--bad);color:#f0c0bc}
+
+.fleet{display:flex;flex-direction:column;gap:3px}
+.ship{display:flex;gap:8px;align-items:center;padding:4px 8px;border-radius:4px;
+  background:var(--bg2);border:1px solid var(--line);cursor:pointer;font-size:12px}
+.ship:hover{border-color:#55657a}
+.ship.sel{border-color:#ffd479;background:#2a2a1c}
+.ship.done{opacity:.4}
+.ship.sunk{opacity:.3;text-decoration:line-through}
+.ship .nm{color:#ffd479;font-weight:600;letter-spacing:.04em}
+.ship .hp{color:var(--dim);margin-left:auto}
+.ship .bad{color:#ff6a5e;font-weight:600}
+
+.log{height:220px;overflow:auto;background:#0d1117;border:1px solid var(--line);
+  border-radius:6px;padding:8px;font:11px/1.6 ui-monospace,Consolas,monospace;color:#9fb0c2}
+.log div{white-space:pre-wrap}
+.log .hl{color:#ffd479}
+
+.overlay{position:fixed;inset:0;background:rgba(8,11,15,.95);display:flex;
+  align-items:center;justify-content:center;z-index:50;text-align:center}
+.overlay > div{max-width:min(90vw,760px)}
+.overlay p{font-size:20px;margin:0 0 6px}
+.overlay .small{font-size:13px;color:var(--dim);margin-bottom:18px}
+.testbox{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:16px;
+  max-height:86vh;display:flex;flex-direction:column;text-align:left}
+#testList{overflow:auto;font:11px/1.7 ui-monospace,Consolas,monospace;margin-bottom:12px}
+#testList div{padding:1px 0}
+.p{color:var(--ok)} .f{color:var(--bad);font-weight:700}
+.d{color:var(--dim)}
+#testSummary{font-size:12px}
+
+/* ── v0.4 실시간 ─────────────────────────────── */
+.spacer{flex:1}
+.clock{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:6px 9px;margin:8px 0}
+.clock .seg{display:flex;gap:3px;align-items:center;color:var(--dim);font-size:11px;margin-left:8px}
+.clock .seg button{padding:3px 7px;font-size:11px}
+.pips{display:inline-flex;gap:2px;margin-left:5px;vertical-align:middle}
+.pip{width:6px;height:12px;border-radius:1px;background:#2a3340;display:inline-block}
+.pip.on{background:#c37ce0}
+.status .d{color:var(--faint)}
+
+.cell .t{pointer-events:none}
+.cell .hb{position:absolute;left:1px;right:1px;bottom:0;height:3px;background:rgba(0,0,0,.55);
+  border-radius:2px;display:none;overflow:hidden}
+.cell .hb b{display:block;height:100%;background:#5fd08a;transition:width .2s}
+.cell.contact .hb b,.cell.enemy .hb b{background:#ff6a5e}
+.cell.mine.cd{filter:saturate(.45) brightness(.8)}
+
+.log .ts{color:#4a5766}
+.log .who{color:#6f8aa5}
+
+/* ── v0.6 조작 보조 표시 ─────────────────────────────── */
+/* 배경색을 덮어쓰지 않도록 gradient 오버레이로 얹는다 (exposed 의 inset shadow 와 충돌 방지) */
+.cell.rng{background-image:linear-gradient(rgba(90,170,255,.16),rgba(90,170,255,.16))}
+.cell.hl{background-image:linear-gradient(rgba(95,208,138,.30),rgba(95,208,138,.30));
+  border-color:#4e9d6e;cursor:pointer}
+.cell.hl:hover{background-image:linear-gradient(rgba(95,208,138,.55),rgba(95,208,138,.55))}
+.cell.zone{background-image:linear-gradient(rgba(90,170,255,.10),rgba(90,170,255,.10))}
+.cell.pick{outline:2px solid #ffd479;outline-offset:-2px;z-index:4}
+.acts button.dim{opacity:.4}
+.acts button.dim b{color:var(--faint)}
+.ship.cool{opacity:.55}
+.ship.cool .hp{color:#8a6a3a}
+.keyhint{color:var(--faint);font-size:10px;margin-left:4px}
