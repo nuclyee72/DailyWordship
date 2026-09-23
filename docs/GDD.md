@@ -1,6 +1,7 @@
 # 워드십 — 기획서 v1.0 (솔로 데일리 퍼즐)
 
 > 이전 버전(실시간 2인 대전, 행동 4종, 8×20 보드)은 [archive/GDD-v0.9-multiplayer.md](archive/GDD-v0.9-multiplayer.md)에 보관.
+> v1.6: 사자성어 모드 추측 한도 30 → 20 (§9).
 > v1.5: 사자성어 모드 추가 (§9) — 형제 게임의 익스텐디드 자리.
 > v1.4: 추측 한도 20 → 30.
 > v1.3: 함대 6척(4·3·3·3·2·2), 추측 20. 주황 칸 재추측 → 그 칸 글자 하나만 노랑 힌트. 완성(초록)은 함선 자리에 이름을 정확히 입력할 때만. 공유는 함선별 칸 그림 (§3, §4, §5.3, §6).
@@ -128,7 +129,7 @@ https://nuclyee72.github.io/DailyWordship/
 |---|---|---|
 | 함대 | 4·3·3·3·2·2 (6척) | **4·4·4·4·4 (5척)** |
 | 함명 | 상용 명사 2~4글자 | **사자성어만** (`src/data/answers-idiom.txt`, 416개) |
-| 추측 | 30번 | 30번 |
+| 추측 | 30번 | **20번** |
 | 데일리 파일 | `daily/<date>.json` | `daily/idiom-<date>.json` (시드 `daily-idiom:<date>`) |
 | 저장 키 | `wordship:progress:<date>` · `wordship:stats` | `wordship:progress:idiom:<date>` · `wordship:stats:idiom` |
 

@@ -20,9 +20,9 @@ export const MODES = {
   idiom: {
     id: 'idiom',
     label: '사자성어',
-    desc: '8×8 · 사자성어 함선 5척 · 추측 30번',
+    desc: '8×8 · 사자성어 함선 5척 · 추측 20번',
     fleet: [4, 4, 4, 4, 4],
-    maxGuesses: 30,
+    maxGuesses: 20,
     answersFile: 'answers-idiom.txt',  // 4글자 사자성어만
     seedPrefix: 'daily-idiom',
     fileName: (date) => `idiom-${date}`,
