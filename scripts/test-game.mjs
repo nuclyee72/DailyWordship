@@ -8,6 +8,7 @@ import { boxCells, boxFromEndpoints, idxOf, allBoxes, boxLabel } from '../src/ga
 import { FLEET, MAX_GUESSES, computeState, validateGuess, resultEmoji } from '../src/game/game.js';
 import { generatePuzzle, countDecoys, DEFAULT_MIN_DECOYS } from '../src/game/generator.js';
 import { loadAnswerPool, loadGuessDictionary } from './lib/words.mjs';
+import { MODES } from '../src/game/modes.js';
 
 let pass = 0;
 let fail = 0;
@@ -191,6 +192,25 @@ test('생성 퍼즐의 함명은 그대로 추측하면 전부 통과', () => {
     guesses.push({ ...s, word: s.name });
   }
   eq(computeState(p, guesses).status, 'won');
+});
+
+// ── 사자성어 모드 ──
+const idiomPool = loadAnswerPool('idiom');
+test('사자성어 풀 — 4글자만, 300개 이상, 전부 추측 사전에 있음', () => {
+  eq(idiomPool.words[2].length + idiomPool.words[3].length, 0);
+  ok(idiomPool.words[4].length >= 300, `${idiomPool.words[4].length}개`);
+  for (const w of idiomPool.words[4]) ok(dict.has(w), `${w} 누락`);
+});
+test('사자성어 퍼즐 30개 — 4칸 5척, 함명 전부 사자성어, 같은 시드 같은 판', () => {
+  const m = MODES.idiom;
+  for (let i = 0; i < 30; i++) {
+    const p = generatePuzzle(`idiom-t:${i}`, idiomPool, { fleet: m.fleet, minDecoys: m.minDecoys });
+    eq(p.ships.map((s) => s.len), [4, 4, 4, 4, 4]);
+    for (const s of p.ships) ok(idiomPool.words[4].includes(s.name), `${s.name} 사자성어 풀 밖`);
+    ok(countDecoys(p, idiomPool)[4] >= m.minDecoys[4], '미끼 부족');
+  }
+  const opts = { fleet: m.fleet, minDecoys: m.minDecoys };
+  eq(generatePuzzle('daily-idiom:2026-09-24', idiomPool, opts), generatePuzzle('daily-idiom:2026-09-24', idiomPool, opts));
 });
 
 console.log(`${pass}/${pass + fail} 통과`);

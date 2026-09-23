@@ -30,10 +30,15 @@
 
       <div id="landing-main" class="landing-stack">
         <div class="daily-cards">
-          <button id="btn-daily-play" class="daily-card" type="button">
+          <button id="btn-daily-play" class="daily-card" type="button" data-mode="standard">
             <span class="daily-card-name">스탠다드</span>
             <span class="daily-card-desc">8×8 · 함선 6척 · 추측 30번</span>
             <span id="daily-card-status" class="daily-card-status" data-status="new">플레이 전</span>
+          </button>
+          <button id="btn-daily-play-idiom" class="daily-card" type="button" data-mode="idiom">
+            <span class="daily-card-name">사자성어</span>
+            <span class="daily-card-desc">8×8 · 사자성어 함선 5척 · 추측 30번</span>
+            <span id="daily-card-status-idiom" class="daily-card-status" data-status="new">플레이 전</span>
           </button>
         </div>
 
@@ -55,6 +60,10 @@
       <div id="landing-archive" class="landing-stack" hidden>
         <button id="archive-back" class="archive-back" type="button">‹ 뒤로</button>
         <p class="archive-note">연습용 — 통계·연승에 반영되지 않습니다.</p>
+        <div class="archive-type-toggle">
+          <button class="archive-type active" data-mode="standard" type="button">스탠다드</button>
+          <button class="archive-type" data-mode="idiom" type="button">사자성어</button>
+        </div>
         <div class="daily-cal-nav">
           <button id="archive-cal-prev" class="daily-cal-arrow" type="button" aria-label="이전 달">‹</button>
           <h3 class="daily-stats-subtitle" id="archive-cal-title">달력</h3>
@@ -144,6 +153,10 @@
     <div class="modal-card daily-stats-card">
       <button id="daily-stats-close" class="floating-panel-close" type="button" aria-label="닫기">✕</button>
       <h2 class="floating-panel-title">통계</h2>
+      <div class="daily-stats-tabs">
+        <button class="daily-stats-tab active" type="button" data-mode="standard">스탠다드</button>
+        <button class="daily-stats-tab" type="button" data-mode="idiom">사자성어</button>
+      </div>
       <div class="daily-stats-numbers">
         <div class="daily-stat"><strong id="stat-played">0</strong><span>게임</span></div>
         <div class="daily-stat"><strong id="stat-winrate">0</strong><span>승률(%)</span></div>
@@ -184,7 +197,28 @@
         <p><strong>추측</strong>판에서 2~4칸을 한 줄로 드래그한 뒤, 그 칸들의 초성에 맞는 명사를 입력하세요. 예: ㅂ ㄷ ㅅ → 바닷새. 사전에 없는 단어나 초성이 안 맞는 단어는 횟수를 쓰지 않고 거절돼요.</p>
         <p><strong>칸별 결과</strong><span class="help-legend"><i class="lg lg-miss"></i>어두워짐 — 빈 바다</span><span class="help-legend"><i class="lg lg-hit"></i>주황 — 함선이 있지만 글자는 틀림</span><span class="help-legend"><i class="lg lg-reveal"></i>노랑 — 글자 공개 (맞혔거나 힌트)</span><span class="help-legend"><i class="lg lg-done"></i>초록 — 함선 자리에 이름을 정확히 입력함</span></p>
         <p><strong>힌트</strong>이미 찾은 주황 칸을 지나가게 추측하면, 단어가 틀려도 그 칸의 글자가 노랑으로 공개돼요. 주황 칸을 여러 개 지나가면 가장 앞 칸(번호가 낮은 칸) 하나만 열려요.</p>
+        <p><strong>사자성어 모드</strong>함선 5척이 모두 4칸이고, 이름은 전부 사자성어예요(예: ㅇ ㅅ ㅇ ㅈ → 일석이조). 규칙은 스탠다드와 같아요.</p>
         <p><strong>완성</strong>함선은 그 자리에 이름을 정확히 입력해야 초록이 돼요. 글자가 전부 노랑이어도 마지막에 이름을 한 번 입력해 주세요.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 자유 연습 모드 선택 -->
+  <div id="freeplay-mode-modal" class="modal-overlay">
+    <div class="modal-card">
+      <h2 class="floating-panel-title">자유 연습 모드</h2>
+      <div class="daily-cards">
+        <button class="daily-card" type="button" data-mode="standard">
+          <span class="daily-card-name">스탠다드</span>
+          <span class="daily-card-desc">8×8 · 함선 6척 · 추측 30번</span>
+        </button>
+        <button class="daily-card" type="button" data-mode="idiom">
+          <span class="daily-card-name">사자성어</span>
+          <span class="daily-card-desc">8×8 · 사자성어 함선 5척 · 추측 30번</span>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-freeplay-mode-cancel" class="modal-btn modal-btn-cancel" type="button">취소</button>
       </div>
     </div>
   </div>

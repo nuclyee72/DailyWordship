@@ -4,7 +4,8 @@ import { buildShareText, buildFleetGrid, buildSummaryLine, buildCalendarShareTex
 import { buildAnswerPool, buildGuessDictionary, fetchWordTexts } from './core/dictionary.js';
 import { onsetOf } from './core/hangul.js';
 import { boxCells, boxLabel, SIZE } from './game/board.js';
-import { MAX_GUESSES, computeState, validateGuess, shipMap, cellOutcomes } from './game/game.js';
+import { computeState, validateGuess, shipMap, cellOutcomes } from './game/game.js';
+import { MODES, modeOf } from './game/modes.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
 
 const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
@@ -18,12 +19,16 @@ const gameScreen      = $('game-screen');
 const landingMain     = $('landing-main');
 const landingArchive  = $('landing-archive');
 const landingDate     = $('landing-date');
-const dailyCardStatus = $('daily-card-status');
+const dailyCardStatus = { standard: $('daily-card-status'), idiom: $('daily-card-status-idiom') };
 const dailyLoadNote   = $('daily-load-note');
 const dailyErrorEl    = $('daily-error');
 
-const btnDailyPlay    = $('btn-daily-play');
+const btnDailyPlay    = { standard: $('btn-daily-play'), idiom: $('btn-daily-play-idiom') };
 const btnFreePlay     = $('btn-free-play');
+const freeplayModeModal = $('freeplay-mode-modal');
+const btnFreeplayModeCancel = $('btn-freeplay-mode-cancel');
+const archiveTypeBtns = document.querySelectorAll('#landing-archive .archive-type');
+const statsTabBtns    = document.querySelectorAll('#daily-stats-modal .daily-stats-tab');
 const btnArchive      = $('btn-archive');
 const btnLandingStats = $('btn-landing-stats');
 const btnLandingDark  = $('btn-landing-dark');
@@ -115,24 +120,34 @@ const loadGuessDict = () => {
   });
   return guessDictPromise;
 };
-let answerPoolPromise = null;
-const loadAnswerPool = () => {
-  answerPoolPromise ??= fetchWordTexts('answers').then(buildAnswerPool).catch((err) => {
-    answerPoolPromise = null;
-    throw err;
-  });
-  return answerPoolPromise;
+// 모드별 출제 풀 — 스탠다드는 answers-{2,3,4}.txt, 사자성어는 answers-idiom.txt
+const answerPoolPromises = new Map();
+const loadAnswerPool = (mode) => {
+  if (!answerPoolPromises.has(mode.id)) {
+    const texts = mode.answersFile
+      ? fetch(`src/data/${mode.answersFile}`).then((res) => {
+        if (!res.ok) throw new Error(`${mode.answersFile} 불러오기 실패 (${res.status})`);
+        return res.text();
+      }).then((text) => ({ 4: text }))
+      : fetchWordTexts('answers');
+    answerPoolPromises.set(mode.id, texts.then(buildAnswerPool).catch((err) => {
+      answerPoolPromises.delete(mode.id);
+      throw err;
+    }));
+  }
+  return answerPoolPromises.get(mode.id);
 };
 
 // ── 데일리 퍼즐 로딩(캐시) ──
 const puzzleCache = new Map();
-async function loadDailyPuzzle(date) {
-  if (puzzleCache.has(date)) return puzzleCache.get(date);
-  const res = await fetch(`daily/${date}.json`, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`${date} 퍼즐을 찾을 수 없음`);
+async function loadDailyPuzzle(date, mode) {
+  const file = mode.fileName(date);
+  if (puzzleCache.has(file)) return puzzleCache.get(file);
+  const res = await fetch(`daily/${file}.json`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${file} 퍼즐을 찾을 수 없음`);
   const data = await res.json();
   const puzzle = { onsets: [...data.onsets], ships: data.ships };
-  puzzleCache.set(date, puzzle);
+  puzzleCache.set(file, puzzle);
   return puzzle;
 }
 
@@ -154,9 +169,12 @@ document.querySelector('.ws-row-labels').append(...Array.from({ length: SIZE }, 
   const s = document.createElement('span'); s.textContent = String(r + 1); return s;
 }));
 
+/** 공유 제목 — '워드십 · 2026-09-24', '워드십 · 사자성어 · 2026-09-24', '워드십 · 사자성어 · 자유 연습' */
+function titleFor(mode, dateOrLabel) {
+  return ['워드십', mode.id === 'standard' ? null : mode.label, dateOrLabel].filter(Boolean).join(' · ');
+}
 function sessionTitle() {
-  if (session.kind === 'free') return '워드십 · 자유 연습';
-  return `워드십 · ${session.date}`;
+  return titleFor(session.mode, session.kind === 'free' ? '자유 연습' : session.date);
 }
 
 function persist() {
@@ -166,11 +184,12 @@ function persist() {
     onsets: session.puzzle.onsets.join(''),
     guesses: session.guesses,
     status: state.status === 'won' ? 'solved' : state.status === 'lost' ? 'failed' : 'playing',
-  });
+  }, session.mode.id);
 }
 
+/** @param {{ kind, date, mode: string, puzzle, guesses }} newSession */
 function openGame(newSession) {
-  session = { ...newSession, map: shipMap(newSession.puzzle) };
+  session = { ...newSession, mode: modeOf(newSession.mode), map: shipMap(newSession.puzzle) };
   resultShown = false;
   viewingAnswer = false;
   selection = null;
@@ -184,7 +203,8 @@ function openGame(newSession) {
 }
 
 function renderGame() {
-  state = computeState(session.puzzle, session.guesses);
+  const { maxGuesses } = session.mode;
+  state = computeState(session.puzzle, session.guesses, { maxGuesses });
   const playing = state.status === 'playing';
   const doneShips = session.puzzle.ships.filter((_, s) => state.completed[s]);
   const doneCells = new Set(doneShips.flatMap((s) => boxCells(s)));
@@ -199,10 +219,11 @@ function renderGame() {
     interactive: playing,
   });
 
-  guessesLeftEl.textContent = String(MAX_GUESSES - state.results.length);
-  guessesMaxEl.textContent = `/ ${MAX_GUESSES}`;
-  guessesLeftEl.parentElement.classList.toggle('is-low', playing && MAX_GUESSES - state.results.length <= 3);
-  modeLabelEl.textContent = session.kind === 'free' ? '자유 연습' : session.kind === 'archive' ? `${session.date} · 지난 퍼즐` : session.date;
+  guessesLeftEl.textContent = String(maxGuesses - state.results.length);
+  guessesMaxEl.textContent = `/ ${maxGuesses}`;
+  guessesLeftEl.parentElement.classList.toggle('is-low', playing && maxGuesses - state.results.length <= 3);
+  const where = session.kind === 'free' ? '자유 연습' : session.kind === 'archive' ? `${session.date} · 지난 퍼즐` : session.date;
+  modeLabelEl.textContent = `${session.mode.label} · ${where}`;
 
   renderFleet();
   renderHistory();
@@ -373,7 +394,7 @@ function afterGuess() {
     resultShown = true;
     wordInput.blur();
     if (session.kind === 'daily') {
-      recordResult(session.date, state.status === 'won' ? 'solved' : 'failed', state.status === 'won' ? state.results.length : null);
+      recordResult(session.date, state.status === 'won' ? 'solved' : 'failed', state.status === 'won' ? state.results.length : null, session.mode.id);
     }
     setTimeout(showResultModal, 450);
   }
@@ -397,16 +418,15 @@ window.__solve = () => {
 
 // ── 정답 보기 · 새 퍼즐 ──
 btnViewAnswer.addEventListener('click', () => { viewingAnswer = !viewingAnswer; renderGame(); });
-btnNewFree.addEventListener('click', () => startFreePlay());
+btnNewFree.addEventListener('click', () => startFreePlay(session.mode.id));
 
 // ── 결과 모달 ──
 function showResultModal() {
   const won = state.status === 'won';
   dailyResultTitle.textContent = won ? '🎉 함대 격파!' : '아쉬워요';
-  const shipCount = session.puzzle.ships.length;
-  dailyResultDetail.textContent = session.kind === 'daily'
-    ? `${session.date} · ${buildSummaryLine(state, shipCount)}`
-    : `${session.kind === 'free' ? '자유 연습' : `${session.date} 지난 퍼즐`} · ${buildSummaryLine(state, shipCount)} (기록에는 반영되지 않아요)`;
+  const summary = buildSummaryLine(state, session.puzzle.ships.length, session.mode.maxGuesses);
+  const where = session.kind === 'daily' ? session.date : session.kind === 'free' ? '자유 연습' : `${session.date} 지난 퍼즐`;
+  dailyResultDetail.textContent = `${session.mode.label} · ${where} · ${summary}${session.kind === 'daily' ? '' : ' (기록에는 반영되지 않아요)'}`;
   // 공유 텍스트와 같은 그림이지만, 화면에서는 칸 폭을 고정해 줄을 정확히 맞춘다 (공백 = 빈 칸)
   dailyResultGrid.replaceChildren(...buildFleetGrid(session.puzzle, state).split('\n').map((line) => {
     const row = document.createElement('div');
@@ -425,7 +445,7 @@ btnDailyResultClose.addEventListener('click', () => closePanel(dailyResultModal)
 dailyResultModal.addEventListener('click', (e) => { if (e.target === dailyResultModal) closePanel(dailyResultModal); });
 btnDailyResultStats.addEventListener('click', () => { closePanel(dailyResultModal); openStatsModal(); });
 btnDailyResultShare.addEventListener('click', async () => {
-  const text = buildShareText({ title: sessionTitle(), puzzle: session.puzzle, state, url: SITE_URL });
+  const text = buildShareText({ title: sessionTitle(), puzzle: session.puzzle, state, url: SITE_URL, maxGuesses: session.mode.maxGuesses });
   const ok = await copyText(text);
   dailyShareNote.textContent = ok ? '클립보드에 복사했어요!' : '복사에 실패했어요.';
 });
@@ -434,16 +454,17 @@ async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-// ── 오늘의 퍼즐 ──
-btnDailyPlay.addEventListener('click', async () => {
+// ── 오늘의 퍼즐 (스탠다드 · 사자성어) ──
+async function startDaily(modeId) {
+  const mode = modeOf(modeId);
   const date = TODAY();
   dailyLoadNote.hidden = false;
   dailyErrorEl.textContent = '';
   try {
-    const puzzle = await loadDailyPuzzle(date);
-    const saved = loadProgress(date);
+    const puzzle = await loadDailyPuzzle(date, mode);
+    const saved = loadProgress(date, mode.id);
     const guesses = saved && saved.onsets === puzzle.onsets.join('') ? saved.guesses : [];
-    openGame({ kind: 'daily', date, puzzle, guesses: [...guesses] });
+    openGame({ kind: 'daily', date, mode: mode.id, puzzle, guesses: [...guesses] });
     persist();
   } catch (err) {
     dailyErrorEl.textContent = '퍼즐을 불러오지 못했어요. 잠시 후 다시 시도해주세요.';
@@ -451,33 +472,43 @@ btnDailyPlay.addEventListener('click', async () => {
   } finally {
     dailyLoadNote.hidden = true;
   }
-});
+}
+Object.entries(btnDailyPlay).forEach(([id, btn]) => btn.addEventListener('click', () => startDaily(id)));
 
 function refreshLandingCard() {
   landingDate.textContent = TODAY();
-  const today = summarize(TODAY()).results[TODAY()];
-  if (today?.status === 'solved') { dailyCardStatus.textContent = '성공'; dailyCardStatus.dataset.status = 'solved'; }
-  else if (today?.status === 'failed') { dailyCardStatus.textContent = '실패'; dailyCardStatus.dataset.status = 'timeout'; }
-  else {
-    const p = loadProgress(TODAY());
-    if (p && p.guesses?.length) { dailyCardStatus.textContent = `진행 중 · ${p.guesses.length}/${MAX_GUESSES}`; dailyCardStatus.dataset.status = 'playing'; }
-    else { dailyCardStatus.textContent = '플레이 전'; dailyCardStatus.dataset.status = 'new'; }
+  for (const mode of Object.values(MODES)) {
+    const el = dailyCardStatus[mode.id];
+    const today = summarize(TODAY(), mode.id).results[TODAY()];
+    if (today?.status === 'solved') { el.textContent = '성공'; el.dataset.status = 'solved'; }
+    else if (today?.status === 'failed') { el.textContent = '실패'; el.dataset.status = 'timeout'; }
+    else {
+      const p = loadProgress(TODAY(), mode.id);
+      if (p && p.guesses?.length) { el.textContent = `진행 중 · ${p.guesses.length}/${mode.maxGuesses}`; el.dataset.status = 'playing'; }
+      else { el.textContent = '플레이 전'; el.dataset.status = 'new'; }
+    }
   }
 }
 
-// ── 자유 연습 — 브라우저에서 즉석 생성 ──
-async function startFreePlay() {
+// ── 자유 연습 — 모드를 고르면 브라우저에서 즉석 생성 ──
+async function startFreePlay(modeId) {
+  const mode = modeOf(modeId);
   try {
-    const [pool, { generatePuzzle }] = await Promise.all([loadAnswerPool(), import('./game/generator.js')]);
-    const puzzle = generatePuzzle(`free:${Date.now()}:${Math.random()}`, pool);
-    openGame({ kind: 'free', date: '자유 연습', puzzle, guesses: [] });
+    const [pool, { generatePuzzle }] = await Promise.all([loadAnswerPool(mode), import('./game/generator.js')]);
+    const puzzle = generatePuzzle(`free:${Date.now()}:${Math.random()}`, pool, { fleet: mode.fleet, minDecoys: mode.minDecoys });
+    openGame({ kind: 'free', date: '자유 연습', mode: mode.id, puzzle, guesses: [] });
   } catch (err) {
     dailyErrorEl.textContent = '자유 연습 퍼즐을 만들지 못했어요.';
     console.error(err);
     showLanding();
   }
 }
-btnFreePlay.addEventListener('click', startFreePlay);
+btnFreePlay.addEventListener('click', () => openPanel(freeplayModeModal));
+btnFreeplayModeCancel.addEventListener('click', () => closePanel(freeplayModeModal));
+freeplayModeModal.addEventListener('click', (e) => { if (e.target === freeplayModeModal) closePanel(freeplayModeModal); });
+freeplayModeModal.querySelectorAll('.daily-card').forEach((btn) => {
+  btn.addEventListener('click', () => { closePanel(freeplayModeModal); startFreePlay(btn.dataset.mode); });
+});
 
 btnGoLanding.addEventListener('click', showLanding);
 
@@ -562,27 +593,40 @@ function makeCalendar({ gridEl, titleEl, prevEl, nextEl, pick = false, onPick = 
 
 // ── 지난 퍼즐(아카이브) ──
 let archiveSelected = null;
+let archiveMode = 'standard'; // 아카이브 안에서만 쓰는 모드 전환 — 들어올 때마다 스탠다드부터
 const archiveCal = makeCalendar({
   gridEl: archiveCalEl, titleEl: archiveCalTitle, prevEl: archiveCalPrev, nextEl: archiveCalNext,
   pick: true,
   onPick: (d) => { archiveSelected = d; btnArchivePlay.disabled = false; archiveErrorEl.textContent = ''; },
 });
+function paintArchiveCal(resetMonth) {
+  archiveTypeBtns.forEach((b) => b.classList.toggle('active', b.dataset.mode === archiveMode));
+  archiveCal.open(summarize(TODAY(), archiveMode), {
+    selected: archiveSelected, minDate: DAILY_FIRST_DATE, maxDate: shiftDateStr(TODAY(), -1), resetMonth,
+  });
+}
 
 btnArchive.addEventListener('click', () => {
   landingMain.hidden = true;
   landingArchive.hidden = false;
   archiveSelected = null;
+  archiveMode = 'standard';
   btnArchivePlay.disabled = true;
   archiveErrorEl.textContent = TODAY() <= DAILY_FIRST_DATE ? '아직 지난 퍼즐이 없어요 — 내일부터 열려요.' : '';
-  archiveCal.open(summarize(TODAY()), { minDate: DAILY_FIRST_DATE, maxDate: shiftDateStr(TODAY(), -1) });
+  paintArchiveCal(true);
 });
+archiveTypeBtns.forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.mode === archiveMode) return;
+  archiveMode = b.dataset.mode;
+  paintArchiveCal(false); // 달은 유지하고 그 모드의 결과 색만 다시 칠함
+}));
 archiveBack.addEventListener('click', () => { landingArchive.hidden = true; landingMain.hidden = false; });
 
 btnArchivePlay.addEventListener('click', async () => {
   if (!archiveSelected) return;
   try {
-    const puzzle = await loadDailyPuzzle(archiveSelected);
-    openGame({ kind: 'archive', date: archiveSelected, puzzle, guesses: [] });
+    const puzzle = await loadDailyPuzzle(archiveSelected, modeOf(archiveMode));
+    openGame({ kind: 'archive', date: archiveSelected, mode: archiveMode, puzzle, guesses: [] });
   } catch (err) {
     archiveErrorEl.textContent = '그 날짜의 퍼즐을 불러오지 못했어요.';
     console.error(err);
@@ -592,9 +636,11 @@ btnArchivePlay.addEventListener('click', async () => {
 // ── 통계 모달 ──
 const statsCal = makeCalendar({ gridEl: dailyStatsCal, titleEl: dailyCalTitle, prevEl: dailyCalPrev, nextEl: dailyCalNext });
 let statsCountdownTimer = null;
+let statsMode = 'standard'; // 탭으로 전환 — 모달이 열려 있는 동안만 유지
 
-function openStatsModal() {
-  const s = summarize(TODAY());
+function renderStats() {
+  statsTabBtns.forEach((b) => b.classList.toggle('active', b.dataset.mode === statsMode));
+  const s = summarize(TODAY(), statsMode);
   statPlayed.textContent = s.played;
   statWinRate.textContent = s.winRate;
   statStreak.textContent = s.curStreak;
@@ -614,7 +660,12 @@ function openStatsModal() {
   });
   dailyStatsShareNote.textContent = '';
   calShareNote.textContent = '';
+}
 
+/** 기본 탭은 지금 하고 있는 판의 모드 (없으면 스탠다드) */
+function openStatsModal(modeId = session?.mode.id ?? 'standard') {
+  statsMode = modeId;
+  renderStats();
   openPanel(dailyStatsModal);
   clearInterval(statsCountdownTimer);
   const tick = () => { dailyNextCountdown.textContent = formatCountdown(msUntilNextReset()); };
@@ -624,20 +675,30 @@ function openStatsModal() {
 function closeStatsModal() { closePanel(dailyStatsModal); clearInterval(statsCountdownTimer); }
 dailyStatsClose.addEventListener('click', closeStatsModal);
 dailyStatsModal.addEventListener('click', (e) => { if (e.target === dailyStatsModal) closeStatsModal(); });
-btnLandingStats.addEventListener('click', openStatsModal);
-btnGameStats.addEventListener('click', openStatsModal);
+btnLandingStats.addEventListener('click', () => openStatsModal('standard'));
+btnGameStats.addEventListener('click', () => openStatsModal());
+statsTabBtns.forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.mode === statsMode) return;
+  statsMode = b.dataset.mode;
+  renderStats();
+}));
 
 btnCalShare.addEventListener('click', async () => {
   const { y, m } = statsCal.monthYM();
-  const text = buildCalendarShareText({ results: summarize(TODAY()).results, year: y, month: m, url: SITE_URL });
+  const mode = modeOf(statsMode);
+  const text = buildCalendarShareText({
+    results: summarize(TODAY(), mode.id).results, year: y, month: m, url: SITE_URL,
+    label: mode.id === 'standard' ? '' : mode.label,
+  });
   calShareNote.textContent = (await copyText(text)) ? '복사했어요!' : '복사 실패';
 });
 btnDailyStatsShare.addEventListener('click', async () => {
-  const p = loadProgress(TODAY());
+  const mode = modeOf(statsMode);
+  const p = loadProgress(TODAY(), mode.id);
   if (!p || p.status === 'playing') { dailyStatsShareNote.textContent = '오늘 퍼즐을 먼저 풀어주세요.'; return; }
-  const puzzle = await loadDailyPuzzle(TODAY());
-  const st = computeState(puzzle, p.guesses);
-  const text = buildShareText({ title: `워드십 · ${TODAY()}`, puzzle, state: st, url: SITE_URL });
+  const puzzle = await loadDailyPuzzle(TODAY(), mode);
+  const st = computeState(puzzle, p.guesses, { maxGuesses: mode.maxGuesses });
+  const text = buildShareText({ title: titleFor(mode, TODAY()), puzzle, state: st, url: SITE_URL, maxGuesses: mode.maxGuesses });
   dailyStatsShareNote.textContent = (await copyText(text)) ? '복사했어요!' : '복사 실패';
 });
 

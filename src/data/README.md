@@ -6,6 +6,8 @@
 |---|---|---|
 | `answers-2.txt` · `answers-3.txt` · `answers-4.txt` | **출제 풀** — 함명은 여기서만 뽑는다 | 2,145 · 737 · 739 |
 | `guesses-2.txt` · `guesses-3.txt` · `guesses-4.txt` | **추측 허용 사전** — 플레이어 입력 단어 검사 | 82,316 · 163,558 · 48,429 (2026-09-24) |
+| `answers-idiom.txt` | **사자성어 모드 출제 풀** — 4글자 사자성어만 | 416 |
+| `curated/idioms-extra.txt` | 사자성어 직접 목록 (널리 아는 것) | 407 |
 | `compound-parts.txt` | **합성어 규칙 부품** — 상용 명사 1~3글자. 부품+부품인 3~4글자도 추측 허용 | 3,120 |
 | `curated/answers-3-extra.txt` | 3글자 출제 풀 보강 (손으로 고름) | |
 | `curated/answers-4-extra.txt` | 4글자 출제 풀 보강 (손으로 고름) | |
@@ -35,4 +37,5 @@
   - `CommonNouns` ← 국립국어원 한국어 학습용 어휘 목록
   - `AllNouns` ← 표준국어대사전 명사
 - [open-korean-text](https://github.com/open-korean-text/open-korean-text) `noun/nouns.txt`, `noun/wikipedia_title_nouns.txt` — **Apache-2.0**
+- 영어 위키낱말사전 [Category:Korean four-character idioms](https://en.wiktionary.org/wiki/Category:Korean_four-character_idioms) — 표제어 목록만 사용 (CC BY-SA 4.0)
 - `curated/*.txt` — 이 저장소에서 직접 작성

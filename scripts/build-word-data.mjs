@@ -7,11 +7,14 @@
  *  - han-dle/pd-korean-noun-list-for-wordles (CC0) — CommonNouns(상용 어휘), AllNouns(표준국어대사전 명사)
  *  - open-korean-text/open-korean-text (Apache-2.0) — nouns.txt (일반 명사 사전),
  *    wikipedia_title_nouns.txt (위키백과 표제어 명사 — 합성어·외래어가 많다. 고유명사도 섞여 있지만 추측용이라 괜찮다)
- *  - src/data/curated/*.txt — 손으로 고른 보강 목록·블록리스트
+ *  - 영어 위키낱말사전 'Category:Korean four-character idioms' (MediaWiki API) — 사자성어 모드 출제 풀
+ *  - src/data/curated/*.txt — 손으로 고른 보강 목록·블록리스트·사자성어 목록
  *
  * 산출물 (src/data/, 한 줄에 한 단어, 가나다순)
  *  - answers-{2,3,4}.txt  함명 출제 풀. 상용 어휘 + 보강 목록 − 블록리스트
  *  - guesses-{2,3,4}.txt  추측 허용 사전. 위 출처 전부 ∪ 출제 풀
+ *  - answers-idiom.txt    사자성어 모드 출제 풀 (4글자). curated/idioms-extra.txt ∪ 위키낱말사전 분류
+ *                         (위키낱말사전 쪽은 직접 목록이나 AllNouns에도 있는 것만 — 낯선 성어 배제)
  *  - compound-parts.txt   합성어 규칙용 부품 — 상용 명사 1~3글자. "부품 + 부품"인 3~4글자도 추측으로 허용한다
  *                         (라면+집, 택시+비, 교통+카드 …). src/core/dictionary.js 참고
  */
@@ -24,6 +27,8 @@ const SRC = {
   all: 'https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/AllNouns.js',
   okt: 'https://raw.githubusercontent.com/open-korean-text/open-korean-text/master/src/main/resources/org/openkoreantext/processor/util/noun/nouns.txt',
   oktWiki: 'https://raw.githubusercontent.com/open-korean-text/open-korean-text/master/src/main/resources/org/openkoreantext/processor/util/noun/wikipedia_title_nouns.txt',
+  idiomCategory: 'https://en.wiktionary.org/w/api.php?action=query&list=categorymembers&format=json&cmlimit=500'
+    + '&cmtitle=' + encodeURIComponent('Category:Korean four-character idioms'),
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,15 +46,27 @@ function parseNounsSource(src) {
 }
 
 async function fetchText(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: { 'User-Agent': 'wordship-build-word-data/1.0 (github.com/nuclyee72/DailyWordship)' } });
   if (!res.ok) throw new Error(`${url} 요청 실패: ${res.status}`);
   return res.text();
 }
 
-/** '#' 주석·빈 줄을 뺀 단어 목록 */
+/** '#' 주석·빈 줄을 뺀 단어 목록 (한 줄에 공백으로 여러 개 적어도 된다) */
 async function readCurated(name) {
   const text = await readFile(path.join(CURATED_DIR, name), 'utf8');
-  return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).flatMap((l) => l.split(/\s+/));
+}
+
+/** 위키낱말사전 분류의 한글 4글자 표제어 전부 (500개 넘으면 이어받기) */
+async function fetchIdiomCategory() {
+  const titles = [];
+  let cont = '';
+  do {
+    const data = JSON.parse(await fetchText(SRC.idiomCategory + (cont ? `&cmcontinue=${encodeURIComponent(cont)}` : '')));
+    titles.push(...data.query.categorymembers.map((m) => m.title));
+    cont = data.continue?.cmcontinue ?? '';
+  } while (cont);
+  return titles.filter((t) => isWordOfLen(t, 4));
 }
 
 function checkLengths(name, words, len) {
@@ -61,9 +78,10 @@ const sorted = (set) => [...set].sort((a, b) => a.localeCompare(b, 'ko'));
 
 async function main() {
   console.log('원본 명사 목록 내려받는 중...');
-  const [commonSrc, allSrc, oktSrc, oktWikiSrc] = await Promise.all(
-    [SRC.common, SRC.all, SRC.okt, SRC.oktWiki].map(fetchText),
-  );
+  const [commonSrc, allSrc, oktSrc, oktWikiSrc, wiktIdioms] = await Promise.all([
+    ...[SRC.common, SRC.all, SRC.okt, SRC.oktWiki].map(fetchText),
+    fetchIdiomCategory(),
+  ]);
   const common = parseNounsSource(commonSrc);
   const all = parseNounsSource(allSrc);
   const okt = oktSrc.split(/\r?\n/).map((l) => l.trim());
@@ -75,6 +93,16 @@ async function main() {
   checkLengths('answers-3-extra.txt', extra3, 3);
   checkLengths('answers-4-extra.txt', extra4, 4);
   const extras = { 2: [], 3: extra3, 4: extra4 };
+
+  // 사자성어 모드 출제 풀
+  const idiomsCurated = await readCurated('idioms-extra.txt');
+  checkLengths('idioms-extra.txt', idiomsCurated, 4);
+  const allSet = new Set(all);
+  const curatedSet = new Set(idiomsCurated);
+  const idioms = new Set(idiomsCurated);
+  for (const w of wiktIdioms) if (curatedSet.has(w) || allSet.has(w)) idioms.add(w);
+  await writeFile(path.join(DATA_DIR, 'answers-idiom.txt'), sorted(idioms).join('\n') + '\n');
+  console.log(`사자성어: 출제 ${idioms.size}개 (직접 ${curatedSet.size}개 + 위키낱말사전 ${wiktIdioms.length}개 중 새로 ${idioms.size - curatedSet.size}개)`);
 
   for (const len of LENGTHS) {
     const answers = new Set(
@@ -88,6 +116,7 @@ async function main() {
 
     const guesses = new Set([...common, ...all, ...okt, ...oktWiki].filter((w) => isWordOfLen(w, len)));
     for (const w of answers) guesses.add(w);
+    if (len === 4) for (const w of idioms) guesses.add(w);
 
     await writeFile(path.join(DATA_DIR, `answers-${len}.txt`), sorted(answers).join('\n') + '\n');
     await writeFile(path.join(DATA_DIR, `guesses-${len}.txt`), sorted(guesses).join('\n') + '\n');
@@ -97,7 +126,7 @@ async function main() {
   const parts = new Set(common.filter((w) => /^[가-힣]{1,3}$/.test(w) && !blocklist.has(w)));
   await writeFile(path.join(DATA_DIR, 'compound-parts.txt'), sorted(parts).join('\n') + '\n');
   console.log(`합성어 부품: ${parts.size}개`);
-  console.log('저장 완료: src/data/answers-*.txt, src/data/guesses-*.txt, src/data/compound-parts.txt');
+  console.log('저장 완료: src/data/answers-*.txt, answers-idiom.txt, guesses-*.txt, compound-parts.txt');
 }
 
 main().catch((err) => { console.error(err); process.exitCode = 1; });

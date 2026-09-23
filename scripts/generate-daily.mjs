@@ -1,5 +1,6 @@
 /**
- * generate-daily.mjs — 그 날의 퍼즐을 생성해 daily/<date>.json 으로 저장.
+ * generate-daily.mjs — 그 날의 퍼즐을 모드별로 생성해 저장.
+ *   스탠다드 → daily/<date>.json · 사자성어 → daily/idiom-<date>.json (src/game/modes.js)
  * (DailyTrilateral/scripts/generate-daily.mjs와 같은 패턴 — 멱등, 며칠치 버퍼, GitHub Actions 크론이 호출)
  *
  *   node scripts/generate-daily.mjs                # KST 오늘 + 앞으로 3일 (버퍼)
@@ -17,18 +18,20 @@ import { fileURLToPath } from 'node:url';
 import { generatePuzzle } from '../src/game/generator.js';
 import { dateStrKST, shiftDateStr } from '../src/daily/dateUtil.js';
 import { loadAnswerPool } from './lib/words.mjs';
+import { MODES } from '../src/game/modes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DAILY_DIR = path.join(__dirname, '..', 'daily');
-const pool = loadAnswerPool();
+const pools = Object.fromEntries(Object.keys(MODES).map((id) => [id, loadAnswerPool(id)]));
 
-async function generateForDate(dateStr) {
-  const outPath = path.join(DAILY_DIR, `${dateStr}.json`);
+async function generateForDate(dateStr, mode) {
+  const fileName = mode.fileName(dateStr);
+  const outPath = path.join(DAILY_DIR, `${fileName}.json`);
   if (existsSync(outPath)) {
-    console.log(`· ${dateStr} 이미 있음 — 건너뜀`);
+    console.log(`· ${fileName} 이미 있음 — 건너뜀`);
     return false;
   }
-  const puzzle = generatePuzzle(`daily:${dateStr}`, pool);
+  const puzzle = generatePuzzle(`${mode.seedPrefix}:${dateStr}`, pools[mode.id], { fleet: mode.fleet, minDecoys: mode.minDecoys });
   const payload = {
     date: dateStr,
     onsets: puzzle.onsets.join(''),
@@ -37,7 +40,7 @@ async function generateForDate(dateStr) {
   };
   await mkdir(DAILY_DIR, { recursive: true });
   await writeFile(outPath, JSON.stringify(payload) + '\n', 'utf8');
-  console.log(`✓ ${dateStr} 저장 (${payload.ships.map((s) => s.name).join(', ')})`);
+  console.log(`✓ ${fileName} 저장 (${payload.ships.map((s) => s.name).join(', ')})`);
   return true;
 }
 
@@ -50,7 +53,7 @@ async function main() {
   for (let i = 0; i < count; i++) {
     const dateStr = shiftDateStr(startDate, i);
     try {
-      if (await generateForDate(dateStr)) wrote++;
+      for (const mode of Object.values(MODES)) if (await generateForDate(dateStr, mode)) wrote++;
     } catch (err) {
       console.error(`✗ ${dateStr} 실패:`, err.message);
       process.exitCode = 1;

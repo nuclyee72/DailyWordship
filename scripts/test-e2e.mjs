@@ -114,14 +114,37 @@ try {
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-5-stats.png`) });
     await page.click('#daily-stats-close');
 
-    // 자유 연습
+    // 자유 연습 — 모드 선택 창
     await page.click('#btn-free-play');
+    await page.click('#freeplay-mode-modal .daily-card[data-mode="standard"]');
     await page.waitForSelector('.ws-cell');
-    assert('자유 연습 퍼즐 생성', (await page.textContent('#ws-mode-label')) === '자유 연습');
+    assert('자유 연습 퍼즐 생성', (await page.textContent('#ws-mode-label')) === '스탠다드 · 자유 연습');
     await page.evaluate(() => window.__solve());
     await page.waitForSelector('#daily-result-modal.show', { timeout: 3000 });
     await page.click('#btn-daily-result-close');
     assert('자유 연습 끝 → 새 퍼즐 버튼', await page.locator('#btn-new-free').isVisible());
+
+    // 사자성어 데일리
+    await page.click('#btn-go-landing');
+    await page.click('#btn-daily-play-idiom');
+    await page.waitForSelector('.ws-cell');
+    assert('사자성어 — 함선 5척', await page.locator('.ws-fleet-ship').count() === 5);
+    assert('사자성어 — 라벨', (await page.textContent('#ws-mode-label')).startsWith('사자성어 · '));
+    await page.evaluate(() => window.__solve());
+    await page.waitForSelector('#daily-result-modal.show', { timeout: 3000 });
+    assert('사자성어 — 결과 모달', (await page.textContent('#daily-result-detail')).startsWith('사자성어'));
+    await page.click('#btn-daily-result-close');
+    await page.click('#btn-go-landing');
+    assert('사자성어 카드 = 성공', (await page.textContent('#daily-card-status-idiom')) === '성공');
+    await page.click('#btn-landing-stats');
+    await page.click('#daily-stats-modal .daily-stats-tab[data-mode="idiom"]');
+    assert('통계 사자성어 탭 — 1게임', (await page.textContent('#stat-played')) === '1');
+    await page.click('#daily-stats-close');
+    // 자유 연습 사자성어
+    await page.click('#btn-free-play');
+    await page.click('#freeplay-mode-modal .daily-card[data-mode="idiom"]');
+    await page.waitForSelector('.ws-cell');
+    assert('사자성어 자유 연습 — 5척', await page.locator('.ws-fleet-ship').count() === 5);
 
     // 다크 모드
     await page.click('#btn-go-landing');

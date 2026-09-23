@@ -5,8 +5,9 @@
  */
 import { shiftDateStr } from './dateUtil.js';
 
-const PROGRESS_KEY = (date) => `wordship:progress:${date}`;
-const STATS_KEY = 'wordship:stats';
+// 스탠다드는 처음부터 쓰던 키 그대로, 사자성어 등 다른 모드는 모드 이름을 끼운 키에 따로 쌓는다
+const PROGRESS_KEY = (date, mode) => (mode === 'standard' ? `wordship:progress:${date}` : `wordship:progress:${mode}:${date}`);
+const STATS_KEY = (mode) => (mode === 'standard' ? 'wordship:stats' : `wordship:stats:${mode}`);
 
 function readJSON(key) {
   try {
@@ -30,27 +31,27 @@ function writeJSON(key, value) {
  */
 
 /** @returns {Progress|null} */
-export function loadProgress(date) {
-  return readJSON(PROGRESS_KEY(date));
+export function loadProgress(date, mode = 'standard') {
+  return readJSON(PROGRESS_KEY(date, mode));
 }
 
-export function saveProgress(progress) {
-  writeJSON(PROGRESS_KEY(progress.date), progress);
+export function saveProgress(progress, mode = 'standard') {
+  writeJSON(PROGRESS_KEY(progress.date, mode), progress);
 }
 
 // ── 통계 ──
 
 /** { results: { [date]: { status: 'solved'|'failed', attempt: number|null } } } */
-export function loadStats() {
-  const s = readJSON(STATS_KEY);
+export function loadStats(mode = 'standard') {
+  const s = readJSON(STATS_KEY(mode));
   return s && s.results ? s : { results: {} };
 }
 
 /** 그 날의 결과를 기록한다. 아카이브(지난 퍼즐)·자유 연습은 이 함수를 호출하지 않는다. */
-export function recordResult(date, status, attempt = null) {
-  const s = loadStats();
+export function recordResult(date, status, attempt = null, mode = 'standard') {
+  const s = loadStats(mode);
   s.results[date] = { status, attempt };
-  writeJSON(STATS_KEY, s);
+  writeJSON(STATS_KEY(mode), s);
   return s;
 }
 
@@ -69,8 +70,8 @@ export function bucketIndexFor(status, attempt) {
  * @returns {{ played, wins, winRate, curStreak, maxStreak, distribution: number[],
  *   results: Record<string,{status,attempt}> }}
  */
-export function summarize(todayStr) {
-  const { results } = loadStats();
+export function summarize(todayStr, mode = 'standard') {
+  const { results } = loadStats(mode);
   const dates = Object.keys(results).sort();
   const played = dates.length;
   let wins = 0;

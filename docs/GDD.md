@@ -1,6 +1,7 @@
 # 워드십 — 기획서 v1.0 (솔로 데일리 퍼즐)
 
 > 이전 버전(실시간 2인 대전, 행동 4종, 8×20 보드)은 [archive/GDD-v0.9-multiplayer.md](archive/GDD-v0.9-multiplayer.md)에 보관.
+> v1.5: 사자성어 모드 추가 (§9) — 형제 게임의 익스텐디드 자리.
 > v1.4: 추측 한도 20 → 30.
 > v1.3: 함대 6척(4·3·3·3·2·2), 추측 20. 주황 칸 재추측 → 그 칸 글자 하나만 노랑 힌트. 완성(초록)은 함선 자리에 이름을 정확히 입력할 때만. 공유는 함선별 칸 그림 (§3, §4, §5.3, §6).
 > v1.0에서 멀티플레이·AP·쿨타임·이동·탐지·포격을 모두 없애고, **옛 '식별'(함명 추측) 하나만 남긴 하루 한 판 퍼즐**이 되었다.
@@ -121,12 +122,33 @@ v1.2는 박스 밖 칸까지 열리고 바로 초록이 되어 "힌트"가 아�
 https://nuclyee72.github.io/DailyWordship/
 ```
 
+## 9. 사자성어 모드
+
+| 항목 | 스탠다드 | 사자성어 |
+|---|---|---|
+| 함대 | 4·3·3·3·2·2 (6척) | **4·4·4·4·4 (5척)** |
+| 함명 | 상용 명사 2~4글자 | **사자성어만** (`src/data/answers-idiom.txt`, 416개) |
+| 추측 | 30번 | 30번 |
+| 데일리 파일 | `daily/<date>.json` | `daily/idiom-<date>.json` (시드 `daily-idiom:<date>`) |
+| 저장 키 | `wordship:progress:<date>` · `wordship:stats` | `wordship:progress:idiom:<date>` · `wordship:stats:idiom` |
+
+규칙(칸별 결과·힌트·완성)은 스탠다드와 같다. 메인 화면 두 번째 카드, 지난 퍼즐·통계의 모드 전환, 자유 연습의 모드 선택으로 들어간다. 모드 정의는 `src/game/modes.js`.
+
+**출제 풀** — 직접 고른 널리 아는 사자성어 407개(`curated/idioms-extra.txt`)에 영어 위키낱말사전 'Korean four-character idioms' 분류를 받아 합친다.
+위키낱말사전 쪽은 직접 목록이나 표준국어대사전 명사 목록에도 있는 것만 쓴다(`교하질쉬` 같은 낯선 성어 배제).
+표준국어대사전 명사 목록은 `새옹지마`·`일석이조`처럼 붙임표가 든 표제어가 빠져 있어 검증 기준으로 쓰지 않았다.
+
+**미끼** — 2·3칸 함선이 없으니 4칸 미끼만 본다. 자연 발생 판당 중앙값 7개, 최소 5개(모자라면 심는다).
+
+**밸런스 (봇 300판)** — 중앙 7회 · 최대 11회로 스탠다드(중앙 19회)보다 훨씬 쉽다.
+사자성어 초성열은 거의 유일해서 초성만 보고 위치를 찍을 수 있기 때문. 봇은 416개를 전부 아는 셈이라 사람 체감과는 다르다 — 실사용을 보고 한도·미끼를 조정한다.
+
 ## 7. 개발
 
 ```sh
 npm test                 # 규칙·생성기 단위 테스트
-npm run simulate         # 밸런스 봇 (node scripts/simulate.mjs [판 수] [시드] [함대])
-npm run generate-daily   # 오늘+3일 퍼즐 생성
+npm run simulate         # 밸런스 봇 (node scripts/simulate.mjs [판 수] [standard|idiom] [시드])
+npm run generate-daily   # 오늘+3일 퍼즐 생성 (두 모드 모두)
 npm run dev              # 로컬 서버 http://localhost:8420/
 npm run test-e2e         # Playwright — 랜딩 → 플레이 → 결과 → 새로고침 복원
 npm run build-word-data  # 단어 데이터 다시 만들기
