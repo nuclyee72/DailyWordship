@@ -109,9 +109,19 @@ test('이미 명중한 칸을 지나는 추측 → 틀려도 그 함선 이름 �
   eq(s2.revealed.slice(0, 3), ['바', '다', '새']);
   eq(s2.completed, [true, false]);
   eq(resultEmoji(s2.results[1]), '🟩');
-  // 첫 추측에서 처음 명중한 칸만으로는 공개되지 않는다
+  // 첫 추측에서 처음 명중한 칸만으로는 공개되지 않는다 (아래 s3)
   const s3 = computeState(P, [g(0, 0, 'h', '보도스')]);
   eq(s3.completed, [false, false]);
+});
+test('확인된 칸이 여럿이면 박스에서 가장 앞 칸의 함선 하나만 공개', () => {
+  // 퍼즐 Q: 가로 2칸 '바다'(a1~b1)와 '소리'(c1~d1)가 나란히 — 둘 다 먼저 한 칸씩 명중시켜 둔다
+  const q = { onsets: onsets.slice(), ships: [{ len: 2, r: 0, c: 0, dir: 'h', name: '바다' }, { len: 2, r: 0, c: 2, dir: 'h', name: '소리' }] };
+  ['ㅂ', 'ㄷ', 'ㅅ', 'ㄹ'].forEach((o, i) => { q.onsets[i] = o; });
+  const pre = [g(0, 1, 'd', '도아'), g(0, 3, 'v', '로아')]; // b1(다 칸) · d1(리 칸) 명중, 글자 틀림
+  const s = computeState(q, [...pre, g(0, 0, 'h', '보도사로')]);
+  eq(s.completed, [true, false], '앞 칸(b1)의 바다만');
+  const s2 = computeState(q, [...pre, g(0, 1, 'h', '도스로')]);
+  eq(s2.completed, [true, false], '박스 b1~d1 → 1번 칸 b1의 바다');
 });
 test('대각 박스로 함선 일부 명중', () => {
   const s = computeState(P, [g(0, 1, 'd', '다아')]);

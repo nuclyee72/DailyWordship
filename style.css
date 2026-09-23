@@ -330,6 +330,8 @@ html, body {
   white-space: pre;
   text-align: left;
 }
+.ws-share-row { display: flex; }
+.ws-share-row span { width: 1.3em; text-align: center; }
 .daily-result-card .modal-actions { flex-wrap: wrap; }
 .daily-result-card .modal-btn { min-width: 84px; }
 .daily-share-note { margin: 12px 0 0; min-height: 16px; font-size: 12px; color: var(--text-input); }

@@ -1,6 +1,6 @@
 import { dateStrKST, shiftDateStr, msUntilNextReset, formatCountdown } from './daily/dateUtil.js';
 import { loadProgress, saveProgress, recordResult, summarize, DIST_BUCKETS } from './daily/storage.js';
-import { buildShareText, buildGuessEmojiGrid, buildSummaryLine, buildCalendarShareText } from './daily/share.js';
+import { buildShareText, buildFleetGrid, buildSummaryLine, buildCalendarShareText } from './daily/share.js';
 import { buildAnswerPool, buildGuessDictionary, fetchWordTexts } from './core/dictionary.js';
 import { onsetOf } from './core/hangul.js';
 import { boxCells, boxLabel, SIZE } from './game/board.js';
@@ -384,7 +384,17 @@ function showResultModal() {
   dailyResultDetail.textContent = session.kind === 'daily'
     ? `${session.date} · ${buildSummaryLine(state, shipCount)}`
     : `${session.kind === 'free' ? '자유 연습' : `${session.date} 지난 퍼즐`} · ${buildSummaryLine(state, shipCount)} (기록에는 반영되지 않아요)`;
-  dailyResultGrid.textContent = buildGuessEmojiGrid(state.results);
+  // 공유 텍스트와 같은 그림이지만, 화면에서는 칸 폭을 고정해 줄을 정확히 맞춘다 (공백 = 빈 칸)
+  dailyResultGrid.replaceChildren(...buildFleetGrid(session.puzzle, state).split('\n').map((line) => {
+    const row = document.createElement('div');
+    row.className = 'ws-share-row';
+    row.append(...Array.from(line, (ch) => {
+      const cell = document.createElement('span');
+      cell.textContent = ch.trim() ? ch : '';
+      return cell;
+    }));
+    return row;
+  }));
   dailyShareNote.textContent = '';
   openPanel(dailyResultModal);
 }
@@ -392,7 +402,7 @@ btnDailyResultClose.addEventListener('click', () => closePanel(dailyResultModal)
 dailyResultModal.addEventListener('click', (e) => { if (e.target === dailyResultModal) closePanel(dailyResultModal); });
 btnDailyResultStats.addEventListener('click', () => { closePanel(dailyResultModal); openStatsModal(); });
 btnDailyResultShare.addEventListener('click', async () => {
-  const text = buildShareText({ title: sessionTitle(), state, shipCount: session.puzzle.ships.length, url: SITE_URL });
+  const text = buildShareText({ title: sessionTitle(), puzzle: session.puzzle, state, url: SITE_URL });
   const ok = await copyText(text);
   dailyShareNote.textContent = ok ? '클립보드에 복사했어요!' : '복사에 실패했어요.';
 });
@@ -604,7 +614,7 @@ btnDailyStatsShare.addEventListener('click', async () => {
   if (!p || p.status === 'playing') { dailyStatsShareNote.textContent = '오늘 퍼즐을 먼저 풀어주세요.'; return; }
   const puzzle = await loadDailyPuzzle(TODAY());
   const st = computeState(puzzle, p.guesses);
-  const text = buildShareText({ title: `데일리 워십 · ${TODAY()}`, state: st, shipCount: puzzle.ships.length, url: SITE_URL });
+  const text = buildShareText({ title: `데일리 워십 · ${TODAY()}`, puzzle, state: st, url: SITE_URL });
   dailyStatsShareNote.textContent = (await copyText(text)) ? '복사했어요!' : '복사 실패';
 });
 
