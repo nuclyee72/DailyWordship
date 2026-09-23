@@ -149,3 +149,11 @@ main{display:flex;gap:16px;padding:14px;align-items:flex-start}
 .ship.cool{opacity:.55}
 .ship.cool .hp{color:#8a6a3a}
 .keyhint{color:var(--faint);font-size:10px;margin-left:4px}
+
+/* ── v0.7 드래그 ─────────────────────────────── */
+.board{user-select:none;-webkit-user-select:none}
+.cell.prev{background-image:linear-gradient(rgba(255,212,121,.45),rgba(255,212,121,.45));
+  border-color:#e0b95f;z-index:3}
+.cell.syl.stale{color:#7d8b9c;font-style:italic;font-weight:400}
+.cell.syl.stale::before{content:"";position:absolute;inset:2px;border:1px dashed #55657a;
+  border-radius:2px;pointer-events:none}

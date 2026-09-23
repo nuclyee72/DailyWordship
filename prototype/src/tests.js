@@ -55,6 +55,7 @@
     eq(spec.filter(function (s) { return s.len === 4; }).length, 3, '4칸 함선 수');
     eq(spec.filter(function (s) { return s.len === 3; }).length, 5, '3칸 함선 수');
     eq(spec.reduce(function (a, s) { return a + s.len; }, 0), 27, '총 점유 칸');
+    eq(X.specOf(4).hp, 10, '4칸 HP'); eq(X.specOf(3).hp, 6, '3칸 HP');
     eq(B.identify.maxLen, 4, '식별 박스 최대 길이가 5로 남아 있음');
     return '8척 / 27칸 / 식별 3~4칸';
   });
@@ -277,11 +278,13 @@
     return 'OK';
   });
 
-  test('이동 — 1칸 이내 인접 조건 위반 거부', function () {
+  test('이동 — 박스 시작 칸이 함선에 붙어 있어야 한다', function () {
     var st = bg(); revealAll(st, 'P1');
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
-    fails(X.move(st, 'P1', sh.id, line(3, 9, 3, true), '구게괴'), '1칸 이내');
-    return 'OK';
+    fails(X.move(st, 'P1', sh.id, line(3, 9, 3, true), '구게괴'), '시작 칸');
+    // 시작 칸이 테두리면 끝 칸은 아무리 멀어도 된다
+    assert(X.move(st, 'P1', sh.id, [X.idx(3, 4), X.idx(3, 5), X.idx(3, 6)], '구게괴').ok, '테두리 시작이 막힘');
+    return '시작=테두리 / 끝=제한 없음';
   });
 
   test('이동 — 자기 자리로는 이동 불가 (뒤집기도 금지)', function () {
@@ -325,13 +328,32 @@
     return '가기고 → 구게괴';
   });
 
-  test('이동 — 상대가 해독한 함명이 전부 사라진다 (§13-1)', function () {
-    var st = bg(); revealAll(st, 'P1');
+  test('이동 — 상대의 해독 정보는 옛 자리에 낡은 채로 남는다', function () {
+    var st = bg(); revealAll(st, 'P1'); revealAll(st, 'P2');
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
     st.kn.P2.shipName[sh.id] = ['가', '기', '고'];
     assert(X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴').ok);
-    eq(st.kn.P2.shipName[sh.id], undefined, '상대 함명 지식이 남아 있음');
-    return '지식 소멸 확인';
+    eq(st.kn.P2.shipName[sh.id], undefined, '함선에 묶인 지식은 끊겨야 함');
+    eq(st.kn.P2.staleSyl[X.idx(3, 3)], '가', '옛 자리에 낡은 정보가 안 남음');
+    eq(st.kn.P2.staleSyl[X.idx(5, 3)], '고', '옛 자리 3');
+    var v = X.projectTile(st, 'P2', X.idx(3, 3), false);
+    eq(v.syl, '가', '화면에 안 보임'); eq(v.stale, true, '낡음 표시가 없음');
+    return '즉시 삭제 아님 — 옛 자리에 잔류';
+  });
+
+  test('이동 — 낡은 정보는 다시 관측하면 폐기된다', function () {
+    var st = bg(); revealAll(st, 'P1'); revealAll(st, 'P2');
+    var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
+    var eye = forceShip(st, 'P2', 3, line(3, 1, 3, false), '가가가');   // (3,1)(3,2)(3,3)? 겹치니 다른 자리
+    eye.tiles.forEach(function (t) { st.tiles[t].occupant = null; });
+    eye.tiles = [X.idx(8, 1), X.idx(8, 2), X.idx(8, 3)];
+    eye.tiles.forEach(function (t) { st.tiles[t].occupant = eye.id; });
+    st.kn.P2.shipName[sh.id] = ['가', '기', '고'];
+    assert(X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴').ok);
+    eq(st.kn.P2.staleSyl[X.idx(5, 3)], '고', '잔류 확인');
+    X.observe(st, 'P2', X.idx(5, 3));
+    eq(st.kn.P2.staleSyl[X.idx(5, 3)], undefined, '재관측했는데 낡은 정보가 남음');
+    return '재관측 → 폐기';
   });
 
   test('이동 — 주변 1칸이 자동 판명된다 (5×3 = 15칸)', function () {
@@ -345,18 +367,36 @@
     return '15칸';
   });
 
-  test('이동 — 적함과 겹치면 실패하지만 AP는 소모되고 접촉을 얻는다', function () {
+  test('충돌 — 적함과 겹치면 양쪽 다 침몰한다', function () {
     var st = bg(); revealAll(st, 'P1');
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
-    forceShip(st, 'P2', 3, line(3, 4, 3, true), '구게괴');
+    var foe = forceShip(st, 'P2', 3, line(3, 4, 3, true), '구게괴');
+    forceShip(st, 'P1', 3, line(0, 0, 3, true), '가가가');   // 전멸 방지
+    forceShip(st, 'P2', 3, line(9, 20, 1, true).concat([X.idx(9, 21), X.idx(9, 22)]), '가가가');
     st.ap.P1 = 5;
     var r = X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴');
-    assert(r.ok && r.collided, '충돌 결과가 아님');
+    assert(r.ok && r.sunkSelf, '동반 침몰 결과가 아님');
+    assert(sh.sunk, '이동한 함선이 살아 있음');
+    assert(foe.sunk, '충돌당한 함선이 살아 있음');
     eq(st.ap.P1, 2, 'AP 소모');
-    eq(st.kn.P1.contact[X.idx(3, 4)], C.CONTACT, '충돌 칸 접촉');
-    eq(sh.tiles[0], X.idx(3, 3), '함선이 이동해 버림');
-    assert(X.cooldownLeft(st, sh) > 0, '충돌 시 쿨타임이 안 걸림');
-    return 'AP 소모 + 쿨 + 접촉';
+    return '양쪽 침몰';
+  });
+
+  test('충돌 — 겹친 칸의 글자는 이동한 함선의 것으로 고정된다', function () {
+    var st = bg(); revealAll(st, 'P1');
+    var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
+    var foe = forceShip(st, 'P2', 4, line(2, 4, 4, true), '나나나나');  // ㄴ 은 보드와 무관, 각인 비교용
+    foe.name = Array.from('가나다라');
+    forceShip(st, 'P1', 3, line(0, 0, 3, true), '가가가');
+    forceShip(st, 'P2', 3, line(9, 20, 1, true).concat([X.idx(9, 21), X.idx(9, 22)]), '가가가');
+    // 이동 박스 (3,4)(4,4)(5,4) 는 적함의 (3,4)(4,4)(5,4) 와 겹친다 (적함은 x2~x5)
+    var r = X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴');
+    assert(r.ok && r.sunkSelf, r.reason || '동반 침몰이 아님');
+    eq(st.wreck[X.idx(3, 4)], '구', '겹친 칸이 이동한 함선 글자가 아님');
+    eq(st.wreck[X.idx(4, 4)], '게', '겹친 칸 2');
+    eq(st.wreck[X.idx(5, 4)], '괴', '겹친 칸 3');
+    eq(st.wreck[X.idx(2, 4)], '가', '안 겹친 칸은 적함 글자여야 함');
+    return '겹친 칸 = 구게괴 / 안 겹친 칸 = 가';
   });
 
   /* ══ 탐지 ══════════════════════════════════════════════ */
@@ -394,7 +434,7 @@
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
     var foe = forceShip(st, 'P2', 3, line(1, 3, 3, true), '가기고');
-    var r = X.identify(st, 'P1', me.id, line(1, 3, 3, true), '구게괴');
+    var r = X.identify(st, 'P1', line(1, 3, 3, true), '구게괴');
     assert(r.ok, r.reason);
     assert(foe.identified, '식별당함이 안 붙음');
     eq(r.hits, 1, '식별된 함선 수');
@@ -405,7 +445,7 @@
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
     var foe = forceShip(st, 'P2', 3, line(1, 3, 3, true), '가기고');
-    var r = X.identify(st, 'P1', me.id, line(1, 3, 3, true), '가구고');
+    var r = X.identify(st, 'P1', line(1, 3, 3, true), '가구고');
     assert(r.ok, r.reason);
     eq(r.learned, 2, '해독된 음절 수');
     var kn = st.kn.P1.shipName[foe.id];
@@ -417,7 +457,7 @@
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
     var foe = forceShip(st, 'P2', 3, line(1, 3, 3, true), '구게괴');
-    var r = X.identify(st, 'P1', me.id, line(1, 3, 3, true), '구게괴');
+    var r = X.identify(st, 'P1', line(1, 3, 3, true), '구게괴');
     assert(r.ok, r.reason);
     eq(r.decoded, 1, '완전 해독 수');
     foe.tiles.forEach(function (t) { eq(st.kn.P1.contact[t], C.CONTACT, '실루엣 미공개'); });
@@ -427,16 +467,16 @@
   test('식별 — 박스는 3~4칸 (5칸 거부)', function () {
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
-    fails(X.identify(st, 'P1', me.id, line(1, 3, 5, true), '가기고구게'), '3~4칸');
+    fails(X.identify(st, 'P1', line(1, 3, 5, true), '가기고구게'), '3~4칸');
     ready(st);
-    assert(X.identify(st, 'P1', me.id, line(1, 3, 4, true), '가기고구').ok, '4칸이 거부됨');
+    assert(X.identify(st, 'P1', line(1, 3, 4, true), '가기고구').ok, '4칸이 거부됨');
     return 'OK';
   });
 
   test('식별 — 적함이 없으면 빈 칸으로 확정된다', function () {
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
-    var r = X.identify(st, 'P1', me.id, line(1, 3, 3, true), '구게괴');
+    var r = X.identify(st, 'P1', line(1, 3, 3, true), '구게괴');
     assert(r.ok, r.reason);
     eq(r.hits, 0, '없는 적함이 잡힘');
     eq(st.kn.P1.contact[X.idx(1, 3)], C.CLEAR, '빈 칸 확정이 안 됨');
@@ -446,7 +486,30 @@
   test('식별 — 사거리 7 초과 거부', function () {
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
-    fails(X.identify(st, 'P1', me.id, line(1, 12, 3, true), '구게괴'), '사거리');
+    fails(X.identify(st, 'P1', line(1, 12, 3, true), '구게괴'), '사거리');
+    return 'OK';
+  });
+
+  test('식별 — 함선을 고르지 않는다 (함대 전체 사거리 기준)', function () {
+    var st = bg(); revealAll(st, 'P1');
+    var far = forceShip(st, 'P1', 3, line(0, 0, 3, true), '가기고');      // 멀리
+    var near = forceShip(st, 'P1', 3, line(1, 10, 3, true), '가기고');    // 박스 근처
+    forceShip(st, 'P2', 3, line(1, 12, 3, true), '구게괴');
+    var r = X.identify(st, 'P1', line(1, 12, 3, true), '구게괴');
+    assert(r.ok, r.reason);
+    eq(r.by, near.id, '가장 가까운 함선이 담당해야 함');
+    assert(X.cooldownLeft(st, near) > 0, '담당 함선에 쿨타임이 안 걸림');
+    eq(X.cooldownLeft(st, far), 0, '엉뚱한 함선이 잠김');
+    return '담당 = ' + near.id;
+  });
+
+  test('식별 — 시작 칸만 사거리 안이면 된다 (끝 칸은 제한 없음)', function () {
+    var st = bg(); revealAll(st, 'P1');
+    forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
+    // 시작 (1,8) 은 거리 7 이내, 끝 (1,10) 은 7 밖
+    assert(X.identify(st, 'P1', [X.idx(1, 8), X.idx(1, 9), X.idx(1, 10)], '구게괴').ok, '끝 칸이 멀다고 막힘');
+    ready(st);
+    fails(X.identify(st, 'P1', [X.idx(1, 12), X.idx(1, 13), X.idx(1, 14)], '구게괴'), '시작 칸');
     return 'OK';
   });
 
@@ -750,7 +813,7 @@
           var box = X.lineBox(c0, c0 + 2);
           if (box && box.length === 3 && box.every(function (c) { return kn.onset[c] && X.shipWithin(st, sh, c, B.identify.range); })) {
             var w = X.nameFor(st, box);
-            if (w && X.identify(st, p, sh.id, box, w).ok) return;
+            if (w && X.identify(st, p, box, w).ok) return;
           }
         }
         if (X.fire(st, p, sh.id, targets[Math.floor(st.rand() * targets.length)]).ok) return;

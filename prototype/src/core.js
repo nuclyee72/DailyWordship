@@ -62,8 +62,8 @@
     cooldown: { movePerLen: 3000, scan: 5000, identify: 8000, fire: 6000 },
 
     ships: [                                        // 5칸 삭제, 4칸 3척
-      { len: 4, count: 3, hp: 6, fireRange: 5 },
-      { len: 3, count: 5, hp: 3, fireRange: 3 }
+      { len: 4, count: 3, hp: 10, fireRange: 5 },
+      { len: 3, count: 5, hp: 6,  fireRange: 3 }
     ],
     scan:     { length: 5 },
     identify: { range: 7, minLen: 3, maxLen: 4 },   // 5글자 폐지

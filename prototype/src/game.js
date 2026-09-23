@@ -108,7 +108,8 @@
       onset: new Uint8Array(N),
       contact: new Uint8Array(N),
       exposed: new Uint8Array(N),
-      shipName: {}
+      shipName: {},
+      staleSyl: {}     // 타일 → 마지막으로 알고 있던 음절 (재관측 전까지 남는 낡은 정보)
     };
   }
 
@@ -167,6 +168,7 @@
   function observe(st, player, i) {
     var k = st.kn[player];
     k.onset[i] = 1;
+    delete k.staleSyl[i];            // 다시 봤으니 낡은 정보는 버린다
     var occ = st.tiles[i].occupant;
     if (occ) {
       var sh = st.ships[occ];
@@ -341,7 +343,8 @@
 
   function endGame(st, winner, reason) {
     st.phase = 'OVER'; st.winner = winner; st.winReason = reason;
-    logm(st, '★ ' + winner + ' 승리 — ' + (reason === 'LANDING' ? '상륙' : reason === 'ANNIHILATION' ? '적 함대 전멸' : reason));
+    logm(st, reason === 'DRAW' ? '★ 무승부 — 양측 함대 전멸'
+      : '★ ' + winner + ' 승리 — ' + (reason === 'LANDING' ? '상륙' : reason === 'ANNIHILATION' ? '적 함대 전멸' : reason));
   }
 
   function checkLanding(st, player, sh) {
@@ -357,24 +360,34 @@
     sh.sunk = true; sh.hp = 0;
     for (var i = 0; i < sh.tiles.length; i++) {
       var t = sh.tiles[i];
-      st.wreck[t] = sh.name[i];
+      if (!st.wreck[t]) st.wreck[t] = sh.name[i];   // 먼저 각인된 글자가 이긴다 (충돌 시 이동한 쪽)
       st.tiles[t].occupant = null;
       ['P1', 'P2'].forEach(function (p) {
         st.kn[p].onset[t] = 1;
         st.kn[p].contact[t] = C_UNKNOWN;
         st.kn[p].exposed[t] = 0;
+        delete st.kn[p].staleSyl[t];
       });
     }
     ['P1', 'P2'].forEach(function (p) { delete st.kn[p].shipName[sh.id]; });
     logm(st, '침몰: ' + sh.id + ' 「' + sh.name.join('') + '」 → 각인');   // 공개
-    if (!fleetOf(st, sh.owner).some(function (s) { return !s.sunk; })) endGame(st, other(sh.owner), 'ANNIHILATION');
   }
 
-  /* ── 이동 (§9.1) ───────────────────────────────────────── */
+  /** 전멸 판정. 충돌로 양측이 동시에 전멸할 수 있으므로 침몰 처리 뒤에 따로 부른다. */
+  function checkAnnihilation(st) {
+    if (st.phase !== 'BATTLE') return;
+    var a1 = fleetOf(st, 'P1').some(function (s) { return !s.sunk; });
+    var a2 = fleetOf(st, 'P2').some(function (s) { return !s.sunk; });
+    if (!a1 && !a2) endGame(st, null, 'DRAW');
+    else if (!a1) endGame(st, 'P2', 'ANNIHILATION');
+    else if (!a2) endGame(st, 'P1', 'ANNIHILATION');
+  }
+
+  /* -- 이동 (GDD 9.1) ------------------------------------ */
   function actionMove(st, player, shipId, cells, word) {
     var err = canAct(st, player, shipId, B.cost.move); if (err) return fail(err);
     var sh = st.ships[shipId];
-    if (sh.identified) return fail('식별당함 — 이동 불가 (해제 수단 없음)');
+    if (sh.identified) return fail('식별당함 - 이동 불가 (해제 수단 없음)');
     if (!cells || cells.length !== sh.len) return fail('단어 박스 길이가 함선 길이(' + sh.len + ')와 달라야 함');
     if (!isLine(cells)) return fail('직선 연속 박스가 아님');
 
@@ -384,7 +397,10 @@
 
     var k = st.kn[player], i;
     for (i = 0; i < cells.length; i++) if (!k.onset[cells[i]]) return fail('초성 미판명 칸 포함: ' + label(player, cells[i]));
-    if (!cells.some(function (c) { return shipWithin(st, sh, c, B.move.adjacency); })) return fail('현재 위치로부터 1칸 이내의 칸을 포함해야 함');
+
+    // 박스의 시작 칸은 함선 본체이거나 그 테두리여야 한다 (드래그 시작점). 끝 칸은 제한 없음.
+    if (!shipWithin(st, sh, cells[0], B.move.adjacency))
+      return fail('박스 시작 칸이 함선에 붙어 있지 않음 (함선 위 또는 테두리에서 시작)');
 
     var werr = validateWord(st, player, cells, word); if (werr) return fail(werr);
 
@@ -392,29 +408,48 @@
       var o = st.tiles[cells[i]].occupant;
       if (o && o !== shipId && st.ships[o].owner === player) return fail('아군 함선과 겹침');
     }
-    var hit = cells.filter(function (c) { var o = st.tiles[c].occupant; return o && st.ships[o].owner !== player; });
+
+    // 충돌할 적함 목록 - 점유를 바꾸기 전에 뽑아 둔다
+    var rammed = [];
+    cells.forEach(function (c) {
+      var o = st.tiles[c].occupant;
+      if (o && st.ships[o].owner !== player && rammed.indexOf(o) < 0) rammed.push(o);
+    });
 
     spend(st, player, sh, B.cost.move, moveCooldown(sh.len));
 
-    if (hit.length) {
-      hit.forEach(function (c) { k.contact[c] = C_CONTACT; st.kn[other(player)].exposed[c] = 1; });
-      return { ok: true, collided: true, msg: logm(st, '충돌 — 이동 실패. 적함 발견: ' + hit.map(function (c) { return label(player, c); }).join(', '), player) };
-    }
-
+    var oldTiles = sh.tiles.slice();
+    var oldKnown = st.kn[other(player)].shipName[shipId];
     sh.tiles.forEach(function (t) { st.tiles[t].occupant = null; });
     sh.tiles = cells.slice();
     sh.name = Array.from(word);
     sh.tiles.forEach(function (t) { st.tiles[t].occupant = shipId; });
-    delete st.kn[other(player)].shipName[shipId];   // 함명 교체 → 상대가 해독한 음절 전부 소멸
+
+    // 상대가 해독했던 음절은 즉시 지워지지 않는다.
+    // 옛 자리에 낡은 정보로 남아 있다가, 상대가 그 칸을 다시 관측하면 폐기된다.
+    if (oldKnown) {
+      var opp = st.kn[other(player)];
+      oldTiles.forEach(function (t, ix) { if (oldKnown[ix]) opp.staleSyl[t] = oldKnown[ix]; });
+      delete opp.shipName[shipId];
+    }
+
+    // 적함과 겹쳤으면 양쪽 다 침몰. 겹친 칸의 글자는 이동한 함선의 것으로 고정된다.
+    if (rammed.length) {
+      sink(st, sh);
+      rammed.forEach(function (id) { sink(st, st.ships[id]); });
+      checkAnnihilation(st);
+      var rm = logm(st, '충돌 - ' + shipId + ' 「' + word + '」 와 ' + rammed.join(', ') + ' 동반 침몰');
+      return { ok: true, rammed: rammed.slice(), sunkSelf: true, msg: rm };
+    }
 
     var seen = new Set();
     sh.tiles.forEach(function (t) { seen.add(t); cellsWithin(t, B.reveal.radius).forEach(function (n) { seen.add(n); }); });
-    seen.forEach(function (s) { observe(st, player, s); });
+    seen.forEach(function (x) { observe(st, player, x); });
 
-    var msg = logm(st, '이동: ' + shipId + ' → 「' + word + '」 ' + label(player, cells[0]) + '-' + label(player, cells[cells.length - 1]) +
+    var mm = logm(st, '이동: ' + shipId + ' -> 「' + word + '」 ' + label(player, cells[0]) + '-' + label(player, cells[cells.length - 1]) +
       ' (' + seen.size + '칸 판명, 쿨 ' + (moveCooldown(sh.len) / 1000) + 's)', player);
     var landed = checkLanding(st, player, sh);
-    return { ok: true, msg: msg, landed: landed, revealed: seen.size };
+    return { ok: true, msg: mm, landed: landed, revealed: seen.size };
   }
 
   /* ── 탐지 (§9.2) ───────────────────────────────────────── */
@@ -434,22 +469,33 @@
     return { ok: true, revealed: n, msg: logm(st, '탐지: ' + label(player, fromIdx) + ' ' + dirKey + ' ' + n + '칸 판명', player) };
   }
 
-  /* ── 식별 (§9.3) ───────────────────────────────────────── */
-  function actionIdentify(st, player, shipId, cells, word) {
-    var err = canAct(st, player, shipId, B.cost.identify); if (err) return fail(err);
-    var sh = st.ships[shipId];
+  /* -- 식별 (GDD 9.3) - 함선을 고르지 않는다. 함대 전체의 사거리가 기준. */
+  function actionIdentify(st, player, cells, word) {
+    if (st.phase !== 'BATTLE') return fail('전투 중이 아님');
+    if (st.ap[player] < B.cost.identify) return fail('AP 부족 (' + st.ap[player] + ' 보유 / ' + B.cost.identify + ' 필요)');
     if (!cells || cells.length < B.identify.minLen || cells.length > B.identify.maxLen)
       return fail('식별 박스는 ' + B.identify.minLen + '~' + B.identify.maxLen + '칸');
     if (!isLine(cells)) return fail('직선 연속 박스가 아님');
 
     var k = st.kn[player], i;
-    for (i = 0; i < cells.length; i++) {
+    for (i = 0; i < cells.length; i++)
       if (!k.onset[cells[i]]) return fail('초성 미판명 칸 포함: ' + label(player, cells[i]));
-      if (!shipWithin(st, sh, cells[i], B.identify.range)) return fail('사거리 초과 — ' + label(player, cells[i]) + ' (최대 ' + B.identify.range + '칸)');
+
+    // 시작 칸을 사거리 안에 두는 함선이 담당한다. 끝 칸은 제한 없음.
+    var live = fleetOf(st, player).filter(function (s) { return !s.sunk; });
+    var covering = live.filter(function (s) { return shipWithin(st, s, cells[0], B.identify.range); });
+    if (!covering.length) return fail('박스 시작 칸이 어느 함선의 사거리(' + B.identify.range + '칸)에도 들어오지 않음');
+    var usable = covering.filter(function (s) { return cooldownLeft(st, s) <= 0; });
+    if (!usable.length) {
+      var soon = Math.min.apply(null, covering.map(function (s) { return cooldownLeft(st, s); }));
+      return fail('사거리 안의 함선이 전부 쿨타임 (' + (soon / 1000).toFixed(1) + '초 남음)');
     }
+    usable.sort(function (a, b) { return shipDist(st, a, cells[0]) - shipDist(st, b, cells[0]); });
+    var by = usable[0];
+
     var werr = validateWord(st, player, cells, word); if (werr) return fail(werr);
 
-    spend(st, player, sh, B.cost.identify, B.cooldown.identify);
+    spend(st, player, by, B.cost.identify, B.cooldown.identify);
     var chars = Array.from(word);
     var hitShips = new Set(), learned = [], decoded = [];
 
@@ -458,6 +504,7 @@
       if (occ && st.ships[occ].owner !== player) {
         hitShips.add(occ);
         k.contact[c] = C_CONTACT;
+        delete k.staleSyl[c];
         st.kn[other(player)].exposed[c] = 1;
         if (chars[i] === effSyllable(st, c)) {
           learnSyllable(st, player, occ, c, chars[i]);
@@ -465,6 +512,7 @@
         }
       } else if (!occ) {
         k.contact[c] = (k.contact[c] === C_CONTACT) ? C_GHOST : C_CLEAR;
+        delete k.staleSyl[c];
       }
     }
     hitShips.forEach(function (id) {
@@ -475,14 +523,14 @@
         tgt.tiles.forEach(function (t) { k.contact[t] = C_CONTACT; st.kn[other(player)].exposed[t] = 1; });
         decoded.push(id);
       }
-      if (wasNew) logm(st, '⚠ 아군 ' + id + ' 식별당함 — 이동 불가, 피해 3배', tgt.owner);
+      if (wasNew) logm(st, '! 아군 ' + id + ' 식별당함 - 이동 불가, 피해 3배', tgt.owner);
     });
 
-    var msg = logm(st, '식별: 「' + word + '」 ' + label(player, cells[0]) + '-' + label(player, cells[cells.length - 1]) +
-      ' → ' + (hitShips.size ? hitShips.size + '척 식별' : '적함 없음') +
+    var msg = logm(st, '식별(' + by.id + '): 「' + word + '」 ' + label(player, cells[0]) + '-' + label(player, cells[cells.length - 1]) +
+      ' -> ' + (hitShips.size ? hitShips.size + '척 식별' : '적함 없음') +
       (learned.length ? ' / 해독 ' + learned.join(',') : '') +
       (decoded.length ? ' / 완전해독 ' + decoded.join(',') : ''), player);
-    return { ok: true, msg: msg, hits: hitShips.size, learned: learned.length, decoded: decoded.length };
+    return { ok: true, msg: msg, by: by.id, hits: hitShips.size, learned: learned.length, decoded: decoded.length };
   }
 
   function learnSyllable(st, player, shipId, cellIdx, syl) {
@@ -527,7 +575,7 @@
         : '포격 ' + label(player, target) + ' 명중 — 피해량 불명 (식별해야 보임)';
       logm(st, msg, player);
       logm(st, '피격: 아군 ' + tgt.id + ' −' + dmg + ' → HP ' + Math.max(0, tgt.hp) + '/' + tgt.maxHp, tgt.owner);
-      if (tgt.hp <= 0) sink(st, tgt);
+      if (tgt.hp <= 0) { sink(st, tgt); checkAnnihilation(st); }
     } else {
       k.contact[target] = (k.contact[target] === C_CONTACT) ? C_GHOST : C_CLEAR;
       msg = logm(st, '포격 ' + label(player, target) + ' 빗나감', player);
@@ -569,8 +617,14 @@
           for (var q = 0; q < sh.len; q++) cells.push(idx(sx + d[0] * q, sy + d[1] * q));
           if (cells.every(function (c) { return sh.tiles.indexOf(c) >= 0; })) continue;   // 자기 자리
           if (!cells.every(function (c) { return k.onset[c]; })) continue;
-          if (!cells.some(function (c) { return shipWithin(st, sh, c, B.move.adjacency); })) continue;
-          if (cells.some(function (c) { var o = st.tiles[c].occupant; return o && o !== sh.id; })) continue;
+          // 시작 칸이 함선에 붙어 있어야 한다. 반대쪽이 붙어 있으면 뒤집어서 쓴다.
+          if (!shipWithin(st, sh, cells[0], B.move.adjacency)) {
+            if (!shipWithin(st, sh, cells[cells.length - 1], B.move.adjacency)) continue;
+            cells = cells.slice().reverse();
+          }
+          if (cells.some(function (c) {
+            var o = st.tiles[c].occupant; return o && o !== sh.id && st.ships[o].owner === sh.owner;
+          })) continue;
           var nm = nameFor(st, cells);
           if (!nm) continue;
           out.push({ cells: cells, word: nm });
@@ -594,6 +648,8 @@
     if (st.wreck[i]) syl = st.wreck[i];
     else if (mine || (omniscient && sh)) syl = sh.name[sh.tiles.indexOf(i)];
     else if (sh) { var kn = k.shipName[occ]; if (kn) syl = kn[sh.tiles.indexOf(i)]; }
+    var stale = false;
+    if (!syl && k.staleSyl[i] && !omniscient) { syl = k.staleSyl[i]; stale = true; }
 
     // 적 체력은 식별당한 함선만 보인다
     var seenEnemy = sh && !mine && (omniscient || k.contact[i] === C_CONTACT);
@@ -606,7 +662,7 @@
       onsetKnown: omniscient ? true : !!k.onset[i],
       onset: (omniscient || k.onset[i]) ? t.onset : null,
       tier: t.tier,
-      syl: syl,
+      syl: syl, stale: stale,
       wreck: !!st.wreck[i],
       contact: omniscient ? (sh && !mine ? C_CONTACT : k.contact[i]) : k.contact[i],
       exposed: !!k.exposed[i],
@@ -629,7 +685,7 @@
     fleetSpec: fleetSpec, fleetOf: fleetOf, setupComplete: setupComplete, startBattle: startBattle,
     advance: advance, cooldownLeft: cooldownLeft, secs: secs,
     move: actionMove, scan: actionScan, identify: actionIdentify, fire: actionFire,
-    endGame: endGame, hasLegalMove: hasLegalMove, findMoves: findMoves,
+    endGame: endGame, checkAnnihilation: checkAnnihilation, hasLegalMove: hasLegalMove, findMoves: findMoves,
     observe: observe, effSyllable: effSyllable, knownSyllableAt: knownSyllableAt,
     shipDist: shipDist, fireRange: fireRange, moveCooldown: moveCooldown, specOf: specOf,
     validateWord: validateWord, nameFor: nameFor,
