@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"/>
+  <title>데일리 워십</title>
+  <meta name="theme-color" content="#2f9e60"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="데일리 워십"/>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="icon.svg"/>
+  <link rel="manifest" href="manifest.webmanifest"/>
+  <link rel="stylesheet" href="style.css"/>
+  <script>
+    // body가 그려지기 전에 먼저 적용해서 라이트 테마가 잠깐 번쩍이는 걸 막는다
+    try {
+      if (localStorage.getItem('wordship-dark-mode') === '1') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch {}
+  </script>
+</head>
+<body>
+
+  <!-- 랜딩 화면 -->
+  <div id="landing-screen" class="landing-screen">
+    <div class="landing-card">
+      <h1 class="landing-title"><span class="landing-title-icon" aria-hidden="true">🚢</span> 데일리 워십</h1>
+      <p id="landing-date" class="landing-date"></p>
+
+      <div id="landing-main" class="landing-stack">
+        <div class="daily-cards">
+          <button id="btn-daily-play" class="daily-card" type="button">
+            <span class="daily-card-name">오늘의 해역</span>
+            <span class="daily-card-desc">8×8 · 함선 4척 · 추측 20번</span>
+            <span id="daily-card-status" class="daily-card-status" data-status="new">플레이 전</span>
+          </button>
+        </div>
+
+        <p id="daily-load-note" class="landing-note" hidden>퍼즐을 불러오는 중...</p>
+        <p id="daily-error" class="landing-error"></p>
+
+        <div class="landing-row">
+          <button id="btn-free-play" class="landing-btn" type="button">자유 연습</button>
+          <button id="btn-archive" class="landing-btn" type="button">지난 퍼즐</button>
+        </div>
+
+        <div class="landing-mini-actions">
+          <button id="btn-landing-help" class="landing-mini-btn" type="button">게임 방법</button>
+          <button id="btn-landing-stats" class="landing-mini-btn" type="button">통계</button>
+          <button id="btn-landing-dark" class="landing-mini-btn" type="button">다크 모드</button>
+        </div>
+      </div>
+
+      <!-- 지난 퍼즐 아카이브 — 연습용, 기록 반영 안 함 -->
+      <div id="landing-archive" class="landing-stack" hidden>
+        <button id="archive-back" class="archive-back" type="button">‹ 뒤로</button>
+        <p class="archive-note">연습용 — 통계·연승에 반영되지 않습니다.</p>
+        <div class="daily-cal-nav">
+          <button id="archive-cal-prev" class="daily-cal-arrow" type="button" aria-label="이전 달">‹</button>
+          <h3 class="daily-stats-subtitle" id="archive-cal-title">달력</h3>
+          <button id="archive-cal-next" class="daily-cal-arrow" type="button" aria-label="다음 달">›</button>
+        </div>
+        <div id="archive-cal" class="daily-stats-cal"></div>
+        <p id="archive-error" class="archive-error"></p>
+        <button id="btn-archive-play" class="landing-btn landing-btn-primary" type="button" disabled>플레이</button>
+      </div>
+
+      <p class="landing-footer">
+        <a href="https://github.com/nuclyee72/WordShip" target="_blank" rel="noopener">nuclyee</a>
+        <span aria-hidden="true">·</span>
+        <span id="app-version">v1.0.0</span>
+      </p>
+      <p class="landing-footer landing-footer-links">
+        <a href="https://nuclyee72.github.io/DailySudoku/">데일리 스도쿠</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://nuclyee72.github.io/DailyTrilateral/">데일리 삼각관계</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="game-screen" class="game-screen hidden">
+    <div class="ws-game">
+      <div class="ws-topbar">
+        <button id="btn-go-landing" class="ws-topbar-btn" type="button">‹ 메인 화면</button>
+        <div class="ws-guess-count" aria-label="남은 추측">
+          <strong id="ws-guesses-left">20</strong><span id="ws-guesses-max">/ 20</span>
+        </div>
+        <div class="ws-topbar-right">
+          <button id="btn-view-answer" class="ws-topbar-btn" type="button" hidden>정답 보기</button>
+          <button id="btn-game-stats" class="ws-topbar-btn" type="button">통계</button>
+          <button id="btn-game-help" class="ws-topbar-btn ws-topbar-icon-btn" type="button" aria-label="게임 방법">?</button>
+          <button id="btn-new-free" class="ws-topbar-btn ws-topbar-btn-primary" type="button" hidden>새 퍼즐</button>
+        </div>
+      </div>
+
+      <div class="ws-subbar">
+        <div id="ws-fleet" class="ws-fleet" aria-label="함대 현황"></div>
+        <span id="ws-mode-label" class="ws-mode-label"></span>
+      </div>
+
+      <div class="ws-board-wrap">
+        <div class="ws-col-labels" aria-hidden="true"></div>
+        <div class="ws-row-labels" aria-hidden="true"></div>
+        <div id="ws-board" class="ws-board" role="grid" aria-label="8×8 해역"></div>
+      </div>
+
+      <form id="ws-guess-form" class="ws-guess-form" autocomplete="off">
+        <div id="ws-slots" class="ws-slots" aria-hidden="true"></div>
+        <div class="ws-input-row">
+          <input id="ws-word-input" class="ws-word-input" type="text" inputmode="text" lang="ko"
+                 enterkeyhint="send" autocapitalize="off" spellcheck="false"
+                 placeholder="판에서 2~4칸을 드래그하세요" disabled/>
+          <button id="btn-submit-guess" class="ws-submit-btn" type="submit" disabled>추측</button>
+        </div>
+        <p id="ws-message" class="ws-message" aria-live="polite"></p>
+      </form>
+
+      <ol id="ws-history" class="ws-history" reversed></ol>
+    </div>
+  </div>
+
+  <!-- ── 모달 ── -->
+
+  <!-- 결과 모달 -->
+  <div id="daily-result-modal" class="modal-overlay">
+    <div class="modal-card daily-result-card">
+      <h2 id="daily-result-title" class="floating-panel-title">결과</h2>
+      <p id="daily-result-detail" class="daily-result-detail"></p>
+      <div id="daily-result-grid" class="daily-result-grid"></div>
+      <div class="modal-actions">
+        <button id="btn-daily-result-share" class="modal-btn modal-btn-primary" type="button">공유</button>
+        <button id="btn-daily-result-stats" class="modal-btn modal-btn-cancel" type="button">통계</button>
+        <button id="btn-daily-result-close" class="modal-btn modal-btn-cancel" type="button">닫기</button>
+      </div>
+      <p id="daily-share-note" class="daily-share-note"></p>
+    </div>
+  </div>
+
+  <!-- 통계 모달 -->
+  <div id="daily-stats-modal" class="modal-overlay">
+    <div class="modal-card daily-stats-card">
+      <button id="daily-stats-close" class="floating-panel-close" type="button" aria-label="닫기">✕</button>
+      <h2 class="floating-panel-title">통계</h2>
+      <div class="daily-stats-numbers">
+        <div class="daily-stat"><strong id="stat-played">0</strong><span>게임</span></div>
+        <div class="daily-stat"><strong id="stat-winrate">0</strong><span>승률(%)</span></div>
+        <div class="daily-stat"><strong id="stat-streak">0</strong><span>현재 연승</span></div>
+        <div class="daily-stat"><strong id="stat-maxstreak">0</strong><span>최고 연승</span></div>
+      </div>
+      <div class="daily-cal-nav">
+        <button id="daily-cal-prev" class="daily-cal-arrow" type="button" aria-label="이전 달">‹</button>
+        <h3 class="daily-stats-subtitle" id="daily-cal-title">달력</h3>
+        <button id="daily-cal-next" class="daily-cal-arrow" type="button" aria-label="다음 달">›</button>
+      </div>
+      <div id="daily-stats-cal" class="daily-stats-cal"></div>
+      <div class="cal-share-row">
+        <button id="btn-cal-share" class="cal-share-btn" type="button">📋 달력 공유</button>
+        <span id="cal-share-note" class="daily-share-note"></span>
+      </div>
+      <h3 class="daily-stats-subtitle">사용한 추측 수</h3>
+      <div id="daily-stats-dist" class="daily-stats-dist"></div>
+      <div class="daily-stats-footer">
+        <div class="daily-next">
+          <span>다음 데일리까지</span>
+          <strong id="daily-next-countdown">--:--:--</strong>
+        </div>
+        <button id="btn-daily-stats-share" class="modal-btn modal-btn-primary" type="button">공유</button>
+      </div>
+      <p id="daily-stats-share-note" class="daily-share-note"></p>
+    </div>
+  </div>
+
+  <!-- 게임 방법 모달 -->
+  <div id="game-help-modal" class="modal-overlay">
+    <div class="modal-card game-help-card">
+      <button id="game-help-close" class="floating-panel-close" type="button" aria-label="닫기">✕</button>
+      <h2 class="floating-panel-title">게임 방법</h2>
+      <div class="help-rules">
+        <p><strong>목표</strong>8×8 해역 어딘가에 함선 4척(4칸·3칸·3칸·2칸)이 숨어 있어요. 함선마다 이름이 있고, 이름의 초성이 함선이 놓인 칸에 적혀 있어요. 추측 20번 안에 네 척의 이름을 모두 밝혀내면 성공!</p>
+        <p><strong>함선 배치</strong>가로(→) · 세로(↓) · 대각선(↘ ↗)으로 놓여 있고, 이 방향으로만 읽어요. 함선끼리 붙어 있을 수는 있지만 겹치지는 않아요.</p>
+        <p><strong>추측</strong>판에서 2~4칸을 한 줄로 드래그한 뒤, 그 칸들의 초성에 맞는 명사를 입력하세요. 예: ㅂ ㄷ ㅅ → 바닷새. 사전에 없는 단어나 초성이 안 맞는 단어는 횟수를 쓰지 않고 거절돼요.</p>
+        <p><strong>칸별 결과</strong><span class="help-legend"><i class="lg lg-miss"></i>어두워짐 — 빈 바다</span><span class="help-legend"><i class="lg lg-hit"></i>주황 — 함선이 있지만 글자는 틀림</span><span class="help-legend"><i class="lg lg-reveal"></i>노랑 — 글자까지 맞음 (공개)</span><span class="help-legend"><i class="lg lg-done"></i>초록 — 함선 이름을 전부 밝힘</span></p>
+        <p><strong>팁</strong>한 함선의 글자는 여러 번에 걸쳐 모아도 돼요. 주황 칸이 이어지는 방향을 보면 함선이 놓인 줄이 보여요.</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

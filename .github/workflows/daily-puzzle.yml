@@ -1,0 +1,64 @@
+name: Daily puzzle
+
+on:
+  schedule:
+    # 20:00 UTC = 05:00 KST — 데일리 리셋(KST 06:00) 1시간 전에 그 날+3일치 미리 생성
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: '시작 날짜 (YYYY-MM-DD, 비우면 KST 오늘)'
+        required: false
+        default: ''
+      days:
+        description: '생성할 일수'
+        required: false
+        default: '4'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-puzzle
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generate daily puzzles
+        run: |
+          if [ -n "${{ github.event.inputs.start_date }}" ]; then
+            node scripts/generate-daily.mjs "${{ github.event.inputs.start_date }}" "${{ github.event.inputs.days || '4' }}"
+          else
+            node scripts/generate-daily.mjs
+          fi
+
+      - name: Commit new puzzles
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain daily/)" ]; then
+            echo "새로 생성된 퍼즐 없음"
+            exit 0
+          fi
+          git add daily/
+          git commit -m "daily: puzzles $(date -u +%Y-%m-%d)"
+          # 사이에 다른 push(예: main 배포)가 끼면 non-fast-forward로 거절되므로 rebase 후 재시도
+          pushed=0
+          for i in 1 2 3 4 5; do
+            if git push; then pushed=1; break; fi
+            echo "push 거절됨 — rebase 후 재시도 ($i/5)"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            sleep 5
+          done
+          if [ "$pushed" != "1" ]; then
+            echo "::error::daily 퍼즐 커밋 push 실패"
+            exit 1
+          fi

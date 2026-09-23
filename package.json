@@ -1,0 +1,18 @@
+{
+  "name": "daily-wordship",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "초성 함대 추리 퍼즐 '데일리 워십'(WordShip) — 정적 사이트 (GitHub Pages) + Actions 일일 퍼즐 생성",
+  "scripts": {
+    "build-word-data": "node scripts/build-word-data.mjs",
+    "generate-daily": "node scripts/generate-daily.mjs",
+    "test": "node scripts/test-game.mjs",
+    "simulate": "node scripts/simulate.mjs",
+    "dev": "node scripts/dev-server.mjs",
+    "test-e2e": "node scripts/test-e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

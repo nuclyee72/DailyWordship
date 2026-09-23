@@ -13,3 +13,7 @@ desktop.ini
 node_modules/
 dist/
 build/
+
+# 로컬 테스트
+.dev-server*.log
+test-results/
