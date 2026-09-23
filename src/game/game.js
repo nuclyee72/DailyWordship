@@ -49,8 +49,9 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
 /**
  * 퍼즐 + 추측 목록 → 현재 상태. maxGuesses 는 시뮬레이션에서 한도를 풀 때만 바꾼다.
  * 추측한 박스의 칸마다: 빈 칸이면 '빈칸 확인', 함선 칸이면 '명중', 음절까지 맞으면 '음절 공개'.
- * 이미 명중으로 확인된 칸(주황·노랑)을 지나는 추측은, 단어가 틀려도 그 함선의 이름을 전부 공개한다.
- * 그런 칸이 여럿이면 박스 안에서 가장 앞(번호가 낮은) 칸의 함선 하나만 공개한다.
+ * 힌트 — 박스가 이미 명중으로 확인된 주황 칸(글자 미공개)을 지나면, 그중 박스에서 가장 앞(번호가 낮은)
+ *   칸 하나의 글자를 틀렸어도 노랑으로 공개한다. 박스 밖 칸은 절대 열리지 않는다.
+ * 완성(초록) — 함선 자리에 함선 이름을 정확히 입력했을 때만. 글자가 전부 노랑이어도 이름을 입력해야 초록.
  * @returns {{
  *   revealed: (string|null)[],   칸별 공개된 음절 (노랑, 함선 완성 시 초록)
  *   hit: boolean[],              함선 칸으로 확인됨 (음절 공개 칸 포함)
@@ -75,9 +76,8 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
     const chars = [...g.word];
     const newCells = [];
     const newHits = [];
-    // 이번 추측 전에 이미 명중으로 확인돼 있던 칸 중 박스에서 가장 앞 칸 → 그 함선 이름 전부 공개 (GDD §4)
-    const firstKnown = cells.find((idx) => hit[idx] && map[idx] && !completed[map[idx].ship]);
-    const exposed = firstKnown === undefined ? [] : [map[firstKnown].ship];
+    // 이번 추측 전부터 주황(명중·글자 미공개)이던 칸 — 힌트 후보 (GDD §4)
+    const orangeBefore = cells.filter((idx) => hit[idx] && !revealed[idx]);
     cells.forEach((idx, i) => {
       const at = map[idx];
       if (!at) { miss[idx] = true; return; }
@@ -86,16 +86,18 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
       const syl = puzzle.ships[at.ship].name[at.pos];
       if (chars[i] === syl) { revealed[idx] = syl; newCells.push(idx); }
     });
-    for (const s of exposed) {
-      boxCells(puzzle.ships[s]).forEach((idx, pos) => {
-        if (!hit[idx]) { hit[idx] = true; newHits.push(idx); }
-        if (!revealed[idx]) { revealed[idx] = puzzle.ships[s].name[pos]; newCells.push(idx); }
-      });
+    // 힌트: 아직 가려진 주황 칸 중 박스에서 가장 앞 칸 하나만 공개
+    const hint = orangeBefore.find((idx) => !revealed[idx]);
+    if (hint !== undefined) {
+      const at = map[hint];
+      revealed[hint] = puzzle.ships[at.ship].name[at.pos];
+      newCells.push(hint);
     }
     const completedShips = [];
     puzzle.ships.forEach((ship, s) => {
-      if (completed[s]) return;
-      if (boxCells(ship).every((idx) => revealed[idx])) { completed[s] = true; completedShips.push(s); }
+      if (completed[s] || g.word !== ship.name || !sameBox(g, ship)) return;
+      completed[s] = true;
+      completedShips.push(s);
     });
     results.push({ newCells, newHits, completedShips });
     if (completed.every(Boolean)) status = 'won';

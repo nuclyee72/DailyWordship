@@ -99,29 +99,38 @@ test('누적 완성 → 초록 · 승리', () => {
   const w = computeState(P, [g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')]);
   eq(w.status, 'won');
 });
-test('이미 명중한 칸을 지나는 추측 → 틀려도 그 함선 이름 전부 공개', () => {
+test('주황 칸을 지나는 추측 → 틀려도 그 칸 글자만 노랑 힌트 (박스 밖은 안 열림)', () => {
   // 1) 바다새의 '다' 칸(b1)만 대각선으로 명중 (글자 틀림) → 주황
   const s1 = computeState(P, [g(0, 1, 'd', '도아')]);
   eq(s1.hit[1], true);
   eq(s1.revealed[1], null);
-  // 2) 그 주황 칸을 지나는 다른 추측 — 단어가 틀려도 바다새 전체 공개 → 완성
-  const s2 = computeState(P, [g(0, 1, 'd', '도아'), g(0, 0, 'h', '보도스')]);
-  eq(s2.revealed.slice(0, 3), ['바', '다', '새']);
-  eq(s2.completed, [true, false]);
-  eq(resultEmoji(s2.results[1]), '🟩');
-  // 첫 추측에서 처음 명중한 칸만으로는 공개되지 않는다 (아래 s3)
+  // 2) 그 주황 칸(b1)을 지나는 세로 2칸 추측 — 틀려도 b1 글자만 공개, a1·c1은 그대로
+  const s2 = computeState(P, [g(0, 1, 'd', '도아'), g(0, 1, 'v', '도오')]);
+  eq(s2.revealed.slice(0, 3), [null, '다', null]);
+  eq(s2.completed, [false, false], '힌트로는 초록이 안 됨');
+  eq(resultEmoji(s2.results[1]), '🟨');
+  // 처음 명중한 추측 자체에서는 힌트가 없다
   const s3 = computeState(P, [g(0, 0, 'h', '보도스')]);
-  eq(s3.completed, [false, false]);
+  eq(s3.revealed.slice(0, 3), [null, null, null]);
 });
-test('확인된 칸이 여럿이면 박스에서 가장 앞 칸의 함선 하나만 공개', () => {
-  // 퍼즐 Q: 가로 2칸 '바다'(a1~b1)와 '소리'(c1~d1)가 나란히 — 둘 다 먼저 한 칸씩 명중시켜 둔다
-  const q = { onsets: onsets.slice(), ships: [{ len: 2, r: 0, c: 0, dir: 'h', name: '바다' }, { len: 2, r: 0, c: 2, dir: 'h', name: '소리' }] };
-  ['ㅂ', 'ㄷ', 'ㅅ', 'ㄹ'].forEach((o, i) => { q.onsets[i] = o; });
-  const pre = [g(0, 1, 'd', '도아'), g(0, 3, 'v', '로아')]; // b1(다 칸) · d1(리 칸) 명중, 글자 틀림
-  const s = computeState(q, [...pre, g(0, 0, 'h', '보도사로')]);
-  eq(s.completed, [true, false], '앞 칸(b1)의 바다만');
-  const s2 = computeState(q, [...pre, g(0, 1, 'h', '도스로')]);
-  eq(s2.completed, [true, false], '박스 b1~d1 → 1번 칸 b1의 바다');
+test('주황 칸이 여럿이면 박스에서 가장 앞 칸 하나만 힌트', () => {
+  const pre = [g(0, 0, 'h', '보도스')]; // a1·b1·c1 모두 주황
+  const s = computeState(P, [...pre, g(0, 0, 'h', '부두소')]);
+  eq(s.revealed.slice(0, 3), ['바', null, null], '1번 칸만');
+  // 앞 칸을 이번 추측이 직접 맞히면, 힌트는 그다음 가려진 주황 칸으로
+  const s2 = computeState(P, [...pre, g(0, 0, 'h', '바도스')]);
+  eq(s2.revealed.slice(0, 3), ['바', '다', null]);
+});
+test('글자가 전부 노랑이어도 이름을 입력해야 초록', () => {
+  const partial = [g(0, 0, 'h', '바람새'), g(0, 0, 'h', '보다스')]; // 바·새 → 다 : 전부 공개
+  const s = computeState(P, partial);
+  eq(s.revealed.slice(0, 3), ['바', '다', '새']);
+  eq(s.completed, [false, false]);
+  const s2 = computeState(P, [...partial, g(0, 0, 'h', '바다새')]);
+  eq(s2.completed, [true, false]);
+  // 이름이 같아도 자리가 다르면 완성 아님
+  const s3 = computeState(P, [g(1, 0, 'h', '바다새')]);
+  eq(s3.completed, [false, false]);
 });
 test('대각 박스로 함선 일부 명중', () => {
   const s = computeState(P, [g(0, 1, 'd', '다아')]);
