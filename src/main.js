@@ -25,7 +25,6 @@ const dailyErrorEl    = $('daily-error');
 const btnDailyPlay    = $('btn-daily-play');
 const btnFreePlay     = $('btn-free-play');
 const btnArchive      = $('btn-archive');
-const btnLandingHelp  = $('btn-landing-help');
 const btnLandingStats = $('btn-landing-stats');
 const btnLandingDark  = $('btn-landing-dark');
 const btnGoLanding    = $('btn-go-landing');
@@ -614,7 +613,6 @@ function openHelpModal() { openPanel(gameHelpModal); }
 gameHelpClose.addEventListener('click', () => closePanel(gameHelpModal));
 gameHelpModal.addEventListener('click', (e) => { if (e.target === gameHelpModal) closePanel(gameHelpModal); });
 btnGameHelp.addEventListener('click', openHelpModal);
-btnLandingHelp.addEventListener('click', openHelpModal);
 
 // ── 다크 모드 ──
 const DARK_MODE_KEY = 'wordship-dark-mode';

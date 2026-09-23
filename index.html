@@ -32,7 +32,7 @@
         <div class="daily-cards">
           <button id="btn-daily-play" class="daily-card" type="button">
             <span class="daily-card-name">오늘의 해역</span>
-            <span class="daily-card-desc">8×8 · 함선 4척 · 추측 20번</span>
+            <span class="daily-card-desc">8×8 · 함선 4척 · 추측 15번</span>
             <span id="daily-card-status" class="daily-card-status" data-status="new">플레이 전</span>
           </button>
         </div>
@@ -46,7 +46,6 @@
         </div>
 
         <div class="landing-mini-actions">
-          <button id="btn-landing-help" class="landing-mini-btn" type="button">게임 방법</button>
           <button id="btn-landing-stats" class="landing-mini-btn" type="button">통계</button>
           <button id="btn-landing-dark" class="landing-mini-btn" type="button">다크 모드</button>
         </div>
@@ -85,7 +84,7 @@
       <div class="ws-topbar">
         <button id="btn-go-landing" class="ws-topbar-btn" type="button">‹ 메인 화면</button>
         <div class="ws-guess-count" aria-label="남은 추측">
-          <strong id="ws-guesses-left">20</strong><span id="ws-guesses-max">/ 20</span>
+          <strong id="ws-guesses-left">15</strong><span id="ws-guesses-max">/ 15</span>
         </div>
         <div class="ws-topbar-right">
           <button id="btn-view-answer" class="ws-topbar-btn" type="button" hidden>정답 보기</button>
@@ -180,11 +179,11 @@
       <button id="game-help-close" class="floating-panel-close" type="button" aria-label="닫기">✕</button>
       <h2 class="floating-panel-title">게임 방법</h2>
       <div class="help-rules">
-        <p><strong>목표</strong>8×8 해역 어딘가에 함선 4척(4칸·3칸·3칸·2칸)이 숨어 있어요. 함선마다 이름이 있고, 이름의 초성이 함선이 놓인 칸에 적혀 있어요. 추측 20번 안에 네 척의 이름을 모두 밝혀내면 성공!</p>
+        <p><strong>목표</strong>8×8 해역 어딘가에 함선 4척(4칸·3칸·3칸·2칸)이 숨어 있어요. 함선마다 이름이 있고, 이름의 초성이 함선이 놓인 칸에 적혀 있어요. 추측 15번 안에 네 척의 이름을 모두 밝혀내면 성공!</p>
         <p><strong>함선 배치</strong>가로(→) · 세로(↓) · 대각선(↘ ↗)으로 놓여 있고, 이 방향으로만 읽어요. 함선끼리 붙어 있을 수는 있지만 겹치지는 않아요.</p>
         <p><strong>추측</strong>판에서 2~4칸을 한 줄로 드래그한 뒤, 그 칸들의 초성에 맞는 명사를 입력하세요. 예: ㅂ ㄷ ㅅ → 바닷새. 사전에 없는 단어나 초성이 안 맞는 단어는 횟수를 쓰지 않고 거절돼요.</p>
         <p><strong>칸별 결과</strong><span class="help-legend"><i class="lg lg-miss"></i>어두워짐 — 빈 바다</span><span class="help-legend"><i class="lg lg-hit"></i>주황 — 함선이 있지만 글자는 틀림</span><span class="help-legend"><i class="lg lg-reveal"></i>노랑 — 글자까지 맞음 (공개)</span><span class="help-legend"><i class="lg lg-done"></i>초록 — 함선 이름을 전부 밝힘</span></p>
-        <p><strong>팁</strong>한 함선의 글자는 여러 번에 걸쳐 모아도 돼요. 주황 칸이 이어지는 방향을 보면 함선이 놓인 줄이 보여요.</p>
+        <p><strong>이름 공개</strong>이미 찾은 함선 칸(주황·노랑)을 지나가게 추측하면, 단어가 틀려도 그 함선의 이름이 전부 밝혀져요. 함선을 찾았다면 한 번 더 건드려 보세요!</p>
       </div>
     </div>
   </div>

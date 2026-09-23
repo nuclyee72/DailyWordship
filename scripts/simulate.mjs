@@ -13,7 +13,7 @@
  */
 import { loadAnswerPool } from './lib/words.mjs';
 import { generatePuzzle } from '../src/game/generator.js';
-import { computeState, shipMap } from '../src/game/game.js';
+import { computeState, shipMap, MAX_GUESSES } from '../src/game/game.js';
 import { allBoxes, boxCells, CELL_COUNT } from '../src/game/board.js';
 
 const GAMES = Number(process.argv[2]) || 200;
@@ -32,7 +32,7 @@ function playBot(puzzle) {
   const triedBox = new Set();
   const notSyl = Array.from({ length: CELL_COUNT }, () => new Set());
   let state = computeState(puzzle, guesses, { maxGuesses: Infinity });
-  let at20 = null;
+  let atCap = null;
 
   const patternOf = (b) => b.cells.map((i) => puzzle.onsets[i]).join('');
   const doneCell = (i) => map[i] && state.completed[map[i].ship];
@@ -75,23 +75,23 @@ function playBot(puzzle) {
     b.cells.forEach((i, k) => {
       if (!state.revealed[i]) notSyl[i].add(w[k]);
     });
-    if (guesses.length === 20) at20 = state.completed.filter(Boolean).length;
+    if (guesses.length === MAX_GUESSES) atCap = state.completed.filter(Boolean).length;
   }
-  return { solvedAt: state.status === 'won' ? guesses.length : null, at20: at20 ?? state.completed.filter(Boolean).length };
+  return { solvedAt: state.status === 'won' ? guesses.length : null, atCap: atCap ?? state.completed.filter(Boolean).length };
 }
 
 const solved = [];
-const at20 = [];
+const atCap = [];
 const t0 = Date.now();
 for (let i = 0; i < GAMES; i++) {
   const r = playBot(generatePuzzle(`${PREFIX}:${i}`, pool, FLEET_ARG ? { fleet: FLEET_ARG } : {}));
   if (r.solvedAt) solved.push(r.solvedAt);
-  at20.push(r.at20);
+  atCap.push(r.atCap);
 }
 solved.sort((a, b) => a - b);
 const pct = (n) => `${((n / GAMES) * 100).toFixed(0)}%`;
 const q = (p) => solved[Math.min(solved.length - 1, Math.floor(solved.length * p))];
 console.log(`${GAMES}판 · ${((Date.now() - t0) / 1000).toFixed(1)}초 · 풀이 성공 ${solved.length} (한도 ${HARD_CAP})`);
 if (solved.length) console.log(`추측 수 — 최소 ${solved[0]} · 25% ${q(0.25)} · 중앙 ${q(0.5)} · 75% ${q(0.75)} · 최대 ${solved[solved.length - 1]}`);
-console.log(`20번째 추측 시점 완성 함선 평균 ${(at20.reduce((a, b) => a + b, 0) / GAMES).toFixed(1)}`);
+console.log(`${MAX_GUESSES}번째 추측 시점 완성 함선 평균 ${(atCap.reduce((a, b) => a + b, 0) / GAMES).toFixed(1)}`);
 console.log([15, 20, 25, 30, 40, 60].map((cap) => `${cap}회 ${pct(solved.filter((n) => n <= cap).length)}`).join(' · '));

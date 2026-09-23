@@ -11,7 +11,7 @@ import { CELL_COUNT, MIN_BOX, MAX_BOX, boxCells, sameBox } from './board.js';
 
 /** 함대 — 4칸 1척, 3칸 2척, 2칸 1척 (시뮬레이션으로 정함, GDD §5.3) */
 export const FLEET = [4, 3, 3, 2];
-export const MAX_GUESSES = 20;
+export const MAX_GUESSES = 15;
 
 /** 칸 번호 → { ship: 함선 번호, pos: 함명 안의 위치 } (빈 칸은 null) */
 export function shipMap(puzzle) {
@@ -49,6 +49,7 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
 /**
  * 퍼즐 + 추측 목록 → 현재 상태. maxGuesses 는 시뮬레이션에서 한도를 풀 때만 바꾼다.
  * 추측한 박스의 칸마다: 빈 칸이면 '빈칸 확인', 함선 칸이면 '명중', 음절까지 맞으면 '음절 공개'.
+ * 이미 명중으로 확인된 칸(주황·노랑)을 지나는 추측은, 단어가 틀려도 그 함선의 이름을 전부 공개한다.
  * @returns {{
  *   revealed: (string|null)[],   칸별 공개된 음절 (노랑, 함선 완성 시 초록)
  *   hit: boolean[],              함선 칸으로 확인됨 (음절 공개 칸 포함)
@@ -73,6 +74,8 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
     const chars = [...g.word];
     const newCells = [];
     const newHits = [];
+    // 이번 추측 전에 이미 명중으로 확인돼 있던 칸이 지나가는 함선 → 이름 전부 공개 (GDD §4)
+    const exposed = new Set(cells.filter((idx) => hit[idx] && map[idx] && !completed[map[idx].ship]).map((idx) => map[idx].ship));
     cells.forEach((idx, i) => {
       const at = map[idx];
       if (!at) { miss[idx] = true; return; }
@@ -81,6 +84,12 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
       const syl = puzzle.ships[at.ship].name[at.pos];
       if (chars[i] === syl) { revealed[idx] = syl; newCells.push(idx); }
     });
+    for (const s of exposed) {
+      boxCells(puzzle.ships[s]).forEach((idx, pos) => {
+        if (!hit[idx]) { hit[idx] = true; newHits.push(idx); }
+        if (!revealed[idx]) { revealed[idx] = puzzle.ships[s].name[pos]; newCells.push(idx); }
+      });
+    }
     const completedShips = [];
     puzzle.ships.forEach((ship, s) => {
       if (completed[s]) return;

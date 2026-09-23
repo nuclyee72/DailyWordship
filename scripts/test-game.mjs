@@ -99,6 +99,20 @@ test('누적 완성 → 초록 · 승리', () => {
   const w = computeState(P, [g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')]);
   eq(w.status, 'won');
 });
+test('이미 명중한 칸을 지나는 추측 → 틀려도 그 함선 이름 전부 공개', () => {
+  // 1) 바다새의 '다' 칸(b1)만 대각선으로 명중 (글자 틀림) → 주황
+  const s1 = computeState(P, [g(0, 1, 'd', '도아')]);
+  eq(s1.hit[1], true);
+  eq(s1.revealed[1], null);
+  // 2) 그 주황 칸을 지나는 다른 추측 — 단어가 틀려도 바다새 전체 공개 → 완성
+  const s2 = computeState(P, [g(0, 1, 'd', '도아'), g(0, 0, 'h', '보도스')]);
+  eq(s2.revealed.slice(0, 3), ['바', '다', '새']);
+  eq(s2.completed, [true, false]);
+  eq(resultEmoji(s2.results[1]), '🟩');
+  // 첫 추측에서 처음 명중한 칸만으로는 공개되지 않는다
+  const s3 = computeState(P, [g(0, 0, 'h', '보도스')]);
+  eq(s3.completed, [false, false]);
+});
 test('대각 박스로 함선 일부 명중', () => {
   const s = computeState(P, [g(0, 1, 'd', '다아')]);
   eq(s.revealed[1], '다');

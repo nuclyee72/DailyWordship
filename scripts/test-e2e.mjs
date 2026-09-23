@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import { startServer } from './dev-server.mjs';
 import { dateStrKST } from '../src/daily/dateUtil.js';
 import { boxCells } from '../src/game/board.js';
+import { MAX_GUESSES } from '../src/game/game.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOT_DIR = process.argv[2];
@@ -70,13 +71,13 @@ try {
     await page.waitForTimeout(300);
     const msg = await page.textContent('#ws-message');
     assert(`잘못된 입력 거절 ("${msg}")`, msg.includes('초성') || msg.includes('사전'));
-    assert('횟수 그대로 20', (await page.textContent('#ws-guesses-left')) === '20');
+    assert(`횟수 그대로 ${MAX_GUESSES}`, (await page.textContent('#ws-guesses-left')) === String(MAX_GUESSES));
 
     await page.fill('#ws-word-input', ship.name);
     await page.press('#ws-word-input', 'Enter');
     await page.waitForFunction(() => document.querySelectorAll('.ws-tile.is-done').length > 0, null, { timeout: 15000 });
     assert(`함선 완성 → 초록 ${ship.len}칸`, await page.locator('.ws-tile.is-done').count() === ship.len);
-    assert('남은 추측 19', (await page.textContent('#ws-guesses-left')) === '19');
+    assert(`남은 추측 ${MAX_GUESSES - 1}`, (await page.textContent('#ws-guesses-left')) === String(MAX_GUESSES - 1));
     assert('기록 1줄', await page.locator('.ws-history-item').count() === 1);
     assert('함대 현황 1척 완성', await page.locator('.ws-fleet-ship.is-done').count() === 1);
 

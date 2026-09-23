@@ -56,8 +56,8 @@ export function recordResult(date, status, attempt = null) {
 
 // ── 집계 (통계창) ──
 
-/** 사용한 추측 수 분포 — 20칸은 너무 길어서 5개씩 묶는다 */
-export const DIST_BUCKETS = ['1~5번', '6~10번', '11~15번', '16~20번', '실패'];
+/** 사용한 추측 수 분포 — 15칸은 너무 길어서 5개씩 묶는다 */
+export const DIST_BUCKETS = ['1~5번', '6~10번', '11~15번', '실패'];
 
 export function bucketIndexFor(status, attempt) {
   if (status !== 'solved') return DIST_BUCKETS.length - 1;
