@@ -11,7 +11,7 @@ import { CELL_COUNT, MIN_BOX, MAX_BOX, boxCells, sameBox } from './board.js';
 
 /** 함대 — 4칸 1척, 3칸 3척, 2칸 2척 (GDD §3) */
 export const FLEET = [4, 3, 3, 3, 2, 2];
-export const MAX_GUESSES = 20;
+export const MAX_GUESSES = 30;
 
 /** 칸 번호 → { ship: 함선 번호, pos: 함명 안의 위치 } (빈 칸은 null) */
 export function shipMap(puzzle) {
