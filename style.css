@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;700&family=Inter:wght@400;500;600&display=swap');
 
 /* 색 토큰·랜딩·모달·통계는 DailyTrilateral/style.css에서 가져왔다 (같은 계열 게임끼리 모양을 맞춘다).
-   맨 아래 "게임 화면" 부분만 워십 전용. */
+   맨 아래 "게임 화면" 부분만 워드십 전용. */
 
 :root {
   --grid-line:          #d7dbe3;
@@ -21,7 +21,7 @@
   --surface-1-hover:    #e6e7ec;
   --surface-danger:     #fff1f1;
 
-  /* ── 워십 보드 전용 ── */
+  /* ── 워드십 보드 전용 ── */
   --sea-card:           #e9eef4;   /* 보드 카드 바탕 */
   --tile-onset:         rgba(35, 39, 51, 0.66);
   --miss-bg:            #d9dfe7;
@@ -453,7 +453,7 @@ html, body {
 .daily-next strong { font-family: 'Outfit', 'Inter', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-given); }
 .daily-stats-footer .modal-btn { flex: 0 0 auto; min-width: 76px; height: 40px; }
 
-/* ══════════════════════════ 게임 화면 (워십 전용) ══════════════════════════ */
+/* ══════════════════════════ 게임 화면 (워드십 전용) ══════════════════════════ */
 .game-screen.hidden { display: none; }
 
 .ws-game {

@@ -155,8 +155,8 @@ document.querySelector('.ws-row-labels').append(...Array.from({ length: SIZE }, 
 }));
 
 function sessionTitle() {
-  if (session.kind === 'free') return '데일리 워십 · 자유 연습';
-  return `데일리 워십 · ${session.date}`;
+  if (session.kind === 'free') return '워드십 · 자유 연습';
+  return `워드십 · ${session.date}`;
 }
 
 function persist() {
@@ -637,7 +637,7 @@ btnDailyStatsShare.addEventListener('click', async () => {
   if (!p || p.status === 'playing') { dailyStatsShareNote.textContent = '오늘 퍼즐을 먼저 풀어주세요.'; return; }
   const puzzle = await loadDailyPuzzle(TODAY());
   const st = computeState(puzzle, p.guesses);
-  const text = buildShareText({ title: `데일리 워십 · ${TODAY()}`, puzzle, state: st, url: SITE_URL });
+  const text = buildShareText({ title: `워드십 · ${TODAY()}`, puzzle, state: st, url: SITE_URL });
   dailyStatsShareNote.textContent = (await copyText(text)) ? '복사했어요!' : '복사 실패';
 });
 

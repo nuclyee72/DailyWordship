@@ -36,7 +36,7 @@ export function buildSummaryLine(state, shipCount) {
   return `🚢 ${found}/${shipCount} · 추측 ${state.results.length}/${MAX_GUESSES}`;
 }
 
-/** 공유용 전체 텍스트. title 예: '데일리 워십 · 2026-09-24' */
+/** 공유용 전체 텍스트. title 예: '워드십 · 2026-09-24' */
 export function buildShareText({ title, puzzle, state, url }) {
   const parts = [title, buildSummaryLine(state, puzzle.ships.length), buildFleetGrid(puzzle, state), ''];
   if (url) parts.push(url);
@@ -66,7 +66,7 @@ export function buildCalendarShareText({ results, year, month, url }) {
   const rows = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7).join(''));
 
-  const head = `데일리 워십 · ${year}-${String(month).padStart(2, '0')}`;
+  const head = `워드십 · ${year}-${String(month).padStart(2, '0')}`;
   const parts = [head, `✅ ${wins}  ❌ ${fails}`, '', ...rows, ''];
   if (url) parts.push(url);
   return parts.join('\n');

@@ -1,5 +1,5 @@
 /**
- * game.js — 데일리 워십 규칙 (순수 함수). GDD §2~§4.
+ * game.js — 워드십 규칙 (순수 함수). GDD §2~§4.
  *
  * 퍼즐 = { onsets: string[64], ships: [{ len, r, c, dir, name }] }
  * 진행 = 추측 목록 [{ r, c, dir, len, word }] 하나뿐이다. 화면 상태는 항상
