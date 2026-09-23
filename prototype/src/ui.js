@@ -22,6 +22,7 @@
     sel: { shipId: null, act: null, a: null, b: null },
     drag: null,          // { from, cur, cells, dir }
     cand: '', hl: null, rng: null, moves: null, preview: null,
+    ovl: { move: null, fire: null, ident: null },   // 항상 보이는 사거리 오버레이
     msg: '', err: false, cells: null, gridFor: null
   };
 
@@ -42,6 +43,7 @@
   function resetSel() {
     G.sel = { shipId: null, act: null, a: null, b: null };
     G.cand = ''; G.hl = G.rng = G.moves = G.preview = G.drag = null;
+    G.ovl = { move: null, fire: null, ident: null };
   }
   function clearTarget() {
     G.sel.a = G.sel.b = null; G.cand = ''; G.preview = null; G.drag = null;
@@ -104,34 +106,44 @@
     return Math.max(lo, Math.min(hi, n));
   }
 
-  /* ── 클릭 가능 칸 ──────────────────────────────────────── */
+  /* ── 사거리 오버레이 + 클릭 가능 칸 ─────────────────────
+   * 함선을 고르기만 해도 이동 테두리와 포격 사거리가 같이 보인다.
+   * 색이 겹치지 않도록 채널을 나눈다 — 포격/식별은 배경 틴트, 이동은 테두리 링.
+   */
   function computeHL() {
     G.hl = null; G.rng = null;
+    G.ovl = { move: null, fire: null, ident: null };
     var st = G.st, s = G.sel, i;
-    if (st.phase !== 'BATTLE' || !s.act) return;
-    var set = new Set();
+    if (st.phase !== 'BATTLE') return;
+    var sh = selShip();
+
+    // 식별은 함선과 무관하므로 그때는 개별 함선 사거리를 숨긴다
+    if (sh && !sh.sunk && s.act !== 'identify') {
+      var mv = new Set(), fr = new Set(), r = X.fireRange(sh.len);
+      for (i = 0; i < X.N; i++) {
+        if (X.shipWithin(st, sh, i, B.move.adjacency)) mv.add(i);
+        if (X.shipWithin(st, sh, i, r)) fr.add(i);
+      }
+      G.ovl.move = mv; G.ovl.fire = fr;
+    }
+    if (!s.act) return;
 
     if (s.act === 'identify') {
-      // 함선 선택 없음 — 어느 함선이든 사거리 안 + 초성 판명된 칸이 시작점
-      var kn = st.kn[G.control];
+      var kn = st.kn[G.control], set = new Set();
       var live = X.fleetOf(st, G.control).filter(function (x) { return !x.sunk; });
       for (i = 0; i < X.N; i++) {
         if (!kn.onset[i]) continue;
-        if (live.some(function (sh) { return X.shipWithin(st, sh, i, B.identify.range); })) set.add(i);
+        if (live.some(function (x) { return X.shipWithin(st, x, i, B.identify.range); })) set.add(i);
       }
-      G.rng = set;
+      G.ovl.ident = set; G.rng = set;
       if (s.a == null) G.hl = set;
       return;
     }
 
-    var sh = selShip();
     if (!sh || sh.sunk) return;
-
     if (s.act === 'move') {
       if (sh.identified) return;
-      // 시작 가능 = 함선 본체 + 테두리
-      for (i = 0; i < X.N; i++) if (X.shipWithin(st, sh, i, B.move.adjacency)) set.add(i);
-      G.rng = set;
+      G.rng = G.ovl.move;
       if (s.a == null) {
         G.moves = X.findMoves(st, sh);
         var starts = new Set();
@@ -141,9 +153,7 @@
     } else if (s.act === 'scan') {
       G.hl = new Set(sh.tiles);
     } else if (s.act === 'fire') {
-      var r = X.fireRange(sh.len);
-      for (i = 0; i < X.N; i++) if (X.shipWithin(st, sh, i, r)) set.add(i);
-      G.rng = set;
+      G.rng = G.ovl.fire;
     }
   }
 
@@ -156,8 +166,9 @@
     if (!quiet) {
       var cd = X.cooldownLeft(G.st, sh);
       say('L' + sh.len + ' 「' + sh.name.join('') + '」 HP ' + sh.hp + '/' + sh.maxHp +
+        ' · 포격 ' + X.fireRange(sh.len) + '칸' +
         (sh.identified ? ' · 식별당함(이동 불가)' : '') + (cd > 0 ? ' · 쿨 ' + (cd / 1000).toFixed(1) + 's' : '') +
-        (G.sel.act ? ' — ' + ACTNAME[G.sel.act] : ' — 행동을 고르세요 (1~4)'));
+        (G.sel.act ? ' — ' + ACTNAME[G.sel.act] : ' — 초록 링=이동 가능, 붉은 칠=포격 사거리. 행동을 고르세요 (1~4)'));
     }
   }
   function cycleShip() {
@@ -379,10 +390,10 @@
       for (var xx = 0; xx < X.W; xx++) {
         var id = X.idx(xx, yy), el = mk('div', 'cell');
         el.dataset.i = id;
-        var t = mk('span', 't'), bar = mk('i', 'hb'), inner = mk('b', '');
-        bar.appendChild(inner); el.appendChild(t); el.appendChild(bar);
+        var t = mk('span', 't'), bar = mk('i', 'hb'), inner = mk('b', ''), mark = mk('i', 'mk');
+        bar.appendChild(inner); el.appendChild(t); el.appendChild(bar); el.appendChild(mark);
         frag.appendChild(el);
-        G.cells[id] = { el: el, txt: t, bar: bar, fill: inner };
+        G.cells[id] = { el: el, txt: t, bar: bar, fill: inner, mk: mark };
       }
     });
     board.appendChild(frag);
@@ -409,11 +420,14 @@
       else if (t.contact === C.CONTACT) cls += ' contact';
       else if (t.contact === C.GHOST) { cls += ' ghost'; if (!txt) txt = '?'; }
 
-      if (t.exposed) cls += ' exposed';
-      if ((t.mine && t.mine.identified) || t.enemyIdentified || (t.enemy && t.enemy.identified)) cls += ' ident';
+      var marked = (t.mine && t.mine.identified) || t.enemyIdentified || (t.enemy && t.enemy.identified);
       if (X.viewRow(v, X.xy(i).y) === B.win.landingRow) cls += ' landing';
       if (setup) { var yy2 = X.xy(i).y; if (yy2 >= dep[0] && yy2 <= dep[1]) cls += ' zone'; }
-      if (G.rng && G.rng.has(i)) cls += ' rng';
+      // 사거리 — 배경 틴트 (겹쳐도 구분되도록 포격=붉은, 식별=파란)
+      if (G.ovl.fire && G.ovl.fire.has(i)) cls += ' rFire';
+      if (G.ovl.ident && G.ovl.ident.has(i)) cls += ' rIdent';
+      // 이동 테두리 — 링 (채널이 달라 사거리와 같이 보여도 안 섞인다)
+      if (G.ovl.move && G.ovl.move.has(i)) cls += ' rMove';
       if (G.hl && G.hl.has(i)) cls += ' hl';
       if (pickSet && pickSet.has(i)) cls += ' pick';
       if (G.preview && G.preview.has(i)) cls += ' prev';
@@ -423,6 +437,8 @@
       var hp = t.mine ? t.mine : (t.enemyState || null);
       if (hp) { c.bar.style.display = 'block'; c.fill.style.width = Math.max(0, (hp.hp / hp.maxHp) * 100) + '%'; }
       else c.bar.style.display = 'none';
+      var mkc = 'mk' + (t.exposed ? ' ex' : '') + (marked ? ' id' : '');
+      if (c.mk.className !== mkc) c.mk.className = mkc;
       if (c.el.className !== cls) c.el.className = cls;
       if (c.txt.textContent !== txt) c.txt.textContent = txt;
     }
