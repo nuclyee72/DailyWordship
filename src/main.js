@@ -301,7 +301,24 @@ function renderSlots() {
   });
   if (typed.length > cells.length) slotsEl.lastChild.classList.add('is-bad');
 }
-wordInput.addEventListener('input', renderSlots);
+// 입력칸에는 한글(완성 글자 + 조합 중인 자모)만 — 영어·숫자·공백·특수문자는 들어오는 즉시 지운다.
+// 한글 입력기가 글자를 조합하는 중에 값을 바꾸면 조합이 깨지므로, 조합이 끝났을 때만 거른다.
+const NOT_HANGUL = /[^가-힣ㄱ-ㅎㅏ-ㅣ]/g;
+function stripNonHangul() {
+  const { value } = wordInput;
+  if (!NOT_HANGUL.test(value)) return;
+  NOT_HANGUL.lastIndex = 0;
+  const caret = wordInput.selectionStart ?? value.length;
+  const removedBeforeCaret = (value.slice(0, caret).match(NOT_HANGUL) || []).length;
+  wordInput.value = value.replace(NOT_HANGUL, '');
+  const pos = caret - removedBeforeCaret;
+  wordInput.setSelectionRange(pos, pos);
+}
+wordInput.addEventListener('input', (e) => {
+  if (!e.isComposing) stripNonHangul();
+  renderSlots();
+});
+wordInput.addEventListener('compositionend', () => { stripNonHangul(); renderSlots(); });
 
 function setMessage(text, kind = '') {
   messageEl.textContent = text;
