@@ -152,6 +152,10 @@ test('같은 입력 → 같은 상태 (재계산 결정성)', () => {
 // ── 생성기 ──
 const pool = loadAnswerPool();
 const dict = loadGuessDictionary();
+test('추측 사전 — 일상 합성어·외래어 허용, 아무 음절 조합은 거절', () => {
+  for (const w of ['징검다리', '불꽃놀이', '신용카드', '모래사장', '라면집', '택시비', '김치통', '운동화끈', '교통카드']) ok(dict.has(w), `${w} 거절됨`);
+  for (const w of ['바라다', '다라가나', '쿠쿠쿠', '뷁뷁', '혀뀨']) ok(!dict.has(w), `${w} 허용됨`);
+});
 test('출제 풀은 전부 추측 사전에 있음', () => {
   for (const len of [2, 3, 4]) for (const w of pool.words[len]) ok(dict.has(w), `${w} 누락`);
 });

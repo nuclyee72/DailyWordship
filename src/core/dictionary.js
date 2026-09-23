@@ -28,11 +28,23 @@ export function buildAnswerPool(textsByLen) {
   };
 }
 
-/** 추측 허용 사전 — 입력 단어가 실제 명사인지 */
-export function buildGuessDictionary(textsByLen) {
+/**
+ * 추측 허용 사전 — 입력 단어가 실제 명사인지.
+ * 목록에 없어도 "상용 명사 + 상용 명사"로 쪼개지는 3~4글자면 합성어로 인정한다
+ * (라면+집, 택시+비, 교통+카드, 운동화+끈 …). 부품은 compound-parts.txt(상용 명사 1~3글자).
+ */
+export function buildGuessDictionary(textsByLen, partsText = '') {
   const set = new Set();
   for (const len of WORD_LENGTHS) for (const w of parseList(textsByLen[len] ?? '')) set.add(w);
-  return { has: (word) => set.has(word), size: set.size };
+  const parts = new Set(parseList(partsText));
+  const isCompound = (word) => {
+    if (word.length < 3 || word.length > 4) return false;
+    for (let i = 1; i < word.length; i++) {
+      if (parts.has(word.slice(0, i)) && parts.has(word.slice(i))) return true;
+    }
+    return false;
+  };
+  return { has: (word) => set.has(word) || isCompound(word), size: set.size };
 }
 
 /** 브라우저에서 src/data/<kind>-<len>.txt 세 개를 받아 텍스트 맵으로 */

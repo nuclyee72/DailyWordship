@@ -100,10 +100,16 @@ function showGame() {
 }
 
 // ── 단어 데이터 ──
-// 추측 사전(약 1.7MB)은 첫 화면이 뜬 뒤 바로 백그라운드로 받아 둔다. 출제 풀은 자유 연습에서만 필요.
+// 추측 사전(약 2.8MB, gzip 전송)은 첫 화면이 뜬 뒤 바로 백그라운드로 받아 둔다. 출제 풀은 자유 연습에서만 필요.
 let guessDictPromise = null;
 const loadGuessDict = () => {
-  guessDictPromise ??= fetchWordTexts('guesses').then(buildGuessDictionary).catch((err) => {
+  guessDictPromise ??= Promise.all([
+    fetchWordTexts('guesses'),
+    fetch('src/data/compound-parts.txt').then((res) => {
+      if (!res.ok) throw new Error(`compound-parts.txt 불러오기 실패 (${res.status})`);
+      return res.text();
+    }),
+  ]).then(([texts, parts]) => buildGuessDictionary(texts, parts)).catch((err) => {
     guessDictPromise = null;
     throw err;
   });

@@ -10,4 +10,7 @@ const readTexts = (kind) => Object.fromEntries(
 );
 
 export const loadAnswerPool = () => buildAnswerPool(readTexts('answers'));
-export const loadGuessDictionary = () => buildGuessDictionary(readTexts('guesses'));
+export const loadGuessDictionary = () => buildGuessDictionary(
+  readTexts('guesses'),
+  readFileSync(path.join(DATA_DIR, 'compound-parts.txt'), 'utf8'),
+);
