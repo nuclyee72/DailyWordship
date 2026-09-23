@@ -34,6 +34,7 @@
   --reveal-text:        #6f5300;
   --select:             #3b7ddd;
   --select-soft:        rgba(59, 125, 221, 0.16);
+  --order-bg:           #1f2f6b;
 }
 
 [data-theme="dark"] {
@@ -66,6 +67,7 @@
   --reveal-text:        #f7dc7a;
   --select:             #6aa2f5;
   --select-soft:        rgba(106, 162, 245, 0.2);
+  --order-bg:           #e8a33a;
 }
 
 /* ── 스크롤바는 모든 곳에서 숨긴다 (스크롤 동작 자체는 그대로) ── */
@@ -616,16 +618,29 @@ html, body {
 
 .ws-tile.is-selected { box-shadow: inset 0 0 0 2.5px var(--select); background-image: linear-gradient(var(--select-soft), var(--select-soft)); }
 .ws-tile.is-anchor { box-shadow: inset 0 0 0 2.5px var(--select); }
+/* 글자 순서 번호 — 선택 테두리(파랑)와 구분되게 진한 남색 동그라미 배지에 흰 숫자 */
 .ws-tile-order {
   position: absolute;
-  top: 7%;
-  left: 11%;
+  top: -3px;
+  left: -3px;
+  z-index: 2;
+  display: none;
+  width: calc(var(--board) * 0.04);
+  height: calc(var(--board) * 0.04);
+  min-width: 15px;
+  min-height: 15px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  background: var(--order-bg);
+  color: #ffffff;
   font-family: 'Outfit', 'Inter', sans-serif;
-  font-size: calc(var(--board) * 0.024);
+  font-size: max(10px, calc(var(--board) * 0.026));
   font-weight: 700;
-  color: var(--select);
   line-height: 1;
+  box-shadow: 0 1px 3px rgba(20, 24, 40, 0.3);
 }
+.ws-tile-order:not(:empty) { display: flex; }
 
 .ws-overlay {
   position: absolute;
@@ -638,10 +653,9 @@ html, body {
 .ws-cap { fill: none; vector-effect: non-scaling-stroke; }
 .ws-cap-done { stroke: var(--text-input); stroke-width: 2.5; }
 .ws-cap-answer { stroke: var(--conflict); stroke-width: 2; stroke-dasharray: 5 4; }
-/* 선택 박스 — 칸들을 끈으로 두른 모양 (BoardRenderer #band) */
-.ws-band { fill: none; stroke: var(--select); stroke-width: 3; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.ws-band-select.is-preview { stroke-dasharray: 6 4; }
-.ws-band-flash { animation: ws-flash 1.6s ease forwards; }
+.ws-cap-select { stroke: var(--select); stroke-width: 3; }
+.ws-cap-select.is-preview { stroke-dasharray: 6 4; }
+.ws-cap-flash { stroke: var(--select); stroke-width: 3; animation: ws-flash 1.6s ease forwards; }
 @keyframes ws-flash {
   0%, 60% { opacity: 1; }
   100% { opacity: 0; }
