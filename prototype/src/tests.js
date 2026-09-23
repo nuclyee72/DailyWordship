@@ -48,16 +48,31 @@
 
   /* ══ 함대 구성 (v0.4) ══════════════════════════════════ */
 
-  test('함대 — 4칸 3척 + 3칸 5척 = 8척 27칸 (5칸 폐지)', function () {
+  test('함대 — 4칸 1척 + 3칸 4척 = 5척 16칸 (v0.9 축소)', function () {
     var spec = X.fleetSpec();
-    eq(spec.length, 8, '함선 수');
+    eq(spec.length, 5, '함선 수');
     eq(spec.filter(function (s) { return s.len === 5; }).length, 0, '5칸 함선이 남아 있음');
-    eq(spec.filter(function (s) { return s.len === 4; }).length, 3, '4칸 함선 수');
-    eq(spec.filter(function (s) { return s.len === 3; }).length, 5, '3칸 함선 수');
-    eq(spec.reduce(function (a, s) { return a + s.len; }, 0), 27, '총 점유 칸');
+    eq(spec.filter(function (s) { return s.len === 4; }).length, 1, '4칸 함선 수');
+    eq(spec.filter(function (s) { return s.len === 3; }).length, 4, '3칸 함선 수');
+    eq(spec.reduce(function (a, s) { return a + s.len; }, 0), 16, '총 점유 칸');
     eq(X.specOf(4).hp, 10, '4칸 HP'); eq(X.specOf(3).hp, 6, '3칸 HP');
     eq(B.identify.maxLen, 4, '식별 박스 최대 길이가 5로 남아 있음');
-    return '8척 / 27칸 / 식별 3~4칸';
+    return '5척 / 16칸 / 식별 3~4칸';
+  });
+
+  /* ══ 보드 규격 (v0.9) ══════════════════════════════════ */
+
+  test('보드 — 8 × 20 (8×8 진영 둘 + 중립 4행)', function () {
+    eq(X.W, 8, '가로'); eq(X.H, 20, '세로'); eq(X.N, 160, '총 칸');
+    eq(B.board.deployRows, 8, '배치 구역 행 수');
+    eq(B.board.deployRows * 2 + 4, X.H, '8 + 4 + 8 = 20 이 아님');
+    eq(B.win.landingRow, X.H, 'landingRow 는 board.h 와 같아야 한다');
+    var r1 = X.deployRange('P1'), r2 = X.deployRange('P2');
+    eq(r1[0], 0); eq(r1[1], 7);
+    eq(r2[0], 12); eq(r2[1], 19);
+    eq(r2[0] - r1[1] - 1, 4, '중립 해역이 4행이 아님');
+    eq(X.label('P1', X.idx(X.W - 1, 0)), 'h1', '가로 표기가 a~h 가 아님');
+    return '8×20 · a~h · 중립 y8~11';
   });
 
   /* ══ 거리 (v0.6 — 유클리드) ════════════════════════════ */
@@ -88,18 +103,18 @@
     eq(B.move.adjacency, 1.5, '인접 반지름');
     var st = bg(); revealAll(st, 'P1');
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
-    // 대각으로만 닿는 박스: (6,4),(7,4),(8,4) — (6,4)가 (5,3)의 대각
-    assert(X.move(st, 'P1', sh.id, line(6, 4, 3, true), '구게괴').ok, '대각 인접 이동이 막힘');
+    // 대각으로만 닿는 박스: (6,4),(6,5),(6,6) — 시작 칸 (6,4)가 (5,3)의 대각
+    assert(X.move(st, 'P1', sh.id, line(6, 4, 3, false), '구게괴').ok, '대각 인접 이동이 막힘');
     return '√2 < 1.5 → 8방향 인접 유지';
   });
 
   /* ══ 보드 생성 ═════════════════════════════════════════ */
 
-  test('보드 — 250칸 전부 유효한 초성을 갖는다', function () {
+  test('보드 — 모든 칸이 유효한 초성을 갖는다', function () {
     var st = X.createGame({ seed: 'gen-1' });
-    eq(st.tiles.length, 250, '칸 수');
+    eq(st.tiles.length, X.N, '칸 수');
     assert(st.tiles.every(function (t) { return Hg.CHO.indexOf(t.onset) >= 0; }), '초성이 아닌 값 발견');
-    return '250칸';
+    return X.N + '칸';
   });
 
   test('보드 — 타일은 음절을 갖지 않는다', function () {
@@ -142,34 +157,36 @@
 
   /* ══ 준비 페이즈 ═══════════════════════════════════════ */
 
-  test('준비 — 자기 배치 구역 10×10 초성이 공개된다', function () {
+  test('준비 — 자기 배치 구역 8×8 초성이 공개된다', function () {
     var st = X.createGame({ seed: 'setup-1' });
-    var n1 = 0, i;
+    var want = X.W * B.board.deployRows, n1 = 0, i;
     for (i = 0; i < X.N; i++) if (st.kn.P1.onset[i]) n1++;
-    eq(n1, 100, 'P1 공개 칸');
-    assert(!st.kn.P1.onset[X.idx(0, 12)], 'P1이 중립 해역을 알고 있음');
-    return 'P1/P2 각 100칸';
+    eq(n1, want, 'P1 공개 칸');
+    assert(!st.kn.P1.onset[X.idx(0, 9)], 'P1이 중립 해역을 알고 있음');
+    return 'P1/P2 각 ' + want + '칸';
   });
 
-  test('준비 — 자동 배치 8척 27칸, 구역 안, 함명 초성 일치', function () {
+  test('준비 — 자동 배치 5척 16칸, 구역 안, 함명 초성 일치', function () {
     var st = X.createGame({ seed: 'auto-1' });
+    var n = X.fleetSpec().length;
+    var cells = X.fleetSpec().reduce(function (a, s) { return a + s.len; }, 0);
     assert(X.autoPlace(st, 'P1').ok, 'P1 자동 배치 실패');
     assert(X.autoPlace(st, 'P2').ok, 'P2 자동 배치 실패');
-    eq(X.fleetOf(st, 'P1').length, 8, 'P1 함선 수');
+    eq(X.fleetOf(st, 'P1').length, n, 'P1 함선 수');
     var occ = 0, i;
     for (i = 0; i < X.N; i++) if (st.tiles[i].occupant) occ++;
-    eq(occ, 54, '양측 점유 칸 합계 (27 × 2)');
+    eq(occ, cells * 2, '양측 점유 칸 합계');
     X.fleetOf(st, 'P1').forEach(function (s) {
-      s.tiles.forEach(function (t) { assert(X.xy(t).y <= 9, 'P1 함선이 구역 밖'); });
+      s.tiles.forEach(function (t) { assert(X.xy(t).y <= B.board.deployRows - 1, 'P1 함선이 구역 밖'); });
       eq(s.name.length, s.len, s.id + ' 함명 길이');
       s.tiles.forEach(function (t, k) { eq(Hg.onsetOf(s.name[k]), st.tiles[t].onset, s.id + ' 함명 초성'); });
     });
-    return '8척 × 2, 27칸 × 2';
+    return n + '척 × 2, ' + cells + '칸 × 2';
   });
 
   test('준비 — 배치 구역 밖은 거부', function () {
     var st = X.createGame({ seed: 'setup-2' });
-    var cells = line(0, 12, 3, true);
+    var cells = line(0, 9, 3, true);                 // 중립 해역 (y 8~11)
     fails(X.placeShip(st, 'P1', 3, cells, X.nameFor(st, cells)), '배치 구역');
     return 'OK';
   });
@@ -203,14 +220,15 @@
     return '최대 ' + B.ap.max;
   });
 
-  test('AP — 이동은 3, 식별은 2, 탐지·포격은 1', function () {
+  test('AP — 이동 3 / 탐지·식별 2 / 포격 1', function () {
     eq(B.cost.move, 3, '이동 비용');
-    eq(B.cost.identify, 2); eq(B.cost.scan, 1); eq(B.cost.fire, 1);
+    eq(B.cost.scan, 2, '탐지 비용 (v0.8에서 1→2)');
+    eq(B.cost.identify, 2); eq(B.cost.fire, 1);
     var st = bg(); revealAll(st, 'P1'); st.ap.P1 = 3;
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
     assert(X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴').ok);
     eq(st.ap.P1, 0, '이동 후 AP');
-    return '3 / 2 / 1 / 1';
+    return '3 / 2 / 2 / 1';
   });
 
   test('AP — 부족하면 거부', function () {
@@ -249,7 +267,7 @@
     var st = bg();
     eq(st.current, undefined, 'current 턴 필드가 남아 있음');
     var a = forceShip(st, 'P1', 3, line(0, 0, 3, true), '가기고');
-    var b = forceShip(st, 'P2', 3, line(0, 20, 3, true), '가기고');
+    var b = forceShip(st, 'P2', 3, line(0, X.H - 5, 3, true), '가기고');
     assert(X.scan(st, 'P1', a.id, a.tiles[0], 'E').ok, 'P1 행동 실패');
     assert(X.scan(st, 'P2', b.id, b.tiles[0], 'E').ok, 'P2 행동 실패 — 턴 제약이 남아 있음');
     return '동시 행동 OK';
@@ -346,7 +364,7 @@
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
     var eye = forceShip(st, 'P2', 3, line(3, 1, 3, false), '가가가');   // (3,1)(3,2)(3,3)? 겹치니 다른 자리
     eye.tiles.forEach(function (t) { st.tiles[t].occupant = null; });
-    eye.tiles = [X.idx(8, 1), X.idx(8, 2), X.idx(8, 3)];
+    eye.tiles = [X.idx(X.W - 1, 1), X.idx(X.W - 1, 2), X.idx(X.W - 1, 3)];
     eye.tiles.forEach(function (t) { st.tiles[t].occupant = eye.id; });
     st.kn.P2.shipName[sh.id] = ['가', '기', '고'];
     assert(X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴').ok);
@@ -372,7 +390,7 @@
     var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
     var foe = forceShip(st, 'P2', 3, line(3, 4, 3, true), '구게괴');
     forceShip(st, 'P1', 3, line(0, 0, 3, true), '가가가');   // 전멸 방지
-    forceShip(st, 'P2', 3, line(9, 20, 1, true).concat([X.idx(9, 21), X.idx(9, 22)]), '가가가');
+    forceShip(st, 'P2', 3, line(X.W - 1, X.H - 3, 3, false), '가가가');
     st.ap.P1 = 5;
     var r = X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴');
     assert(r.ok && r.sunkSelf, '동반 침몰 결과가 아님');
@@ -388,7 +406,7 @@
     var foe = forceShip(st, 'P2', 4, line(2, 4, 4, true), '나나나나');  // ㄴ 은 보드와 무관, 각인 비교용
     foe.name = Array.from('가나다라');
     forceShip(st, 'P1', 3, line(0, 0, 3, true), '가가가');
-    forceShip(st, 'P2', 3, line(9, 20, 1, true).concat([X.idx(9, 21), X.idx(9, 22)]), '가가가');
+    forceShip(st, 'P2', 3, line(X.W - 1, X.H - 3, 3, false), '가가가');
     // 이동 박스 (3,4)(4,4)(5,4) 는 적함의 (3,4)(4,4)(5,4) 와 겹친다 (적함은 x2~x5)
     var r = X.move(st, 'P1', sh.id, line(3, 4, 3, true), '구게괴');
     assert(r.ok && r.sunkSelf, r.reason || '동반 침몰이 아님');
@@ -401,24 +419,43 @@
 
   /* ══ 탐지 ══════════════════════════════════════════════ */
 
-  test('탐지 — 방향으로 정확히 5칸 판명', function () {
+  test('탐지 — 쐐기 13칸 (정면 5 + 좌우 각 4)', function () {
+    var st = bg();
+    // 원점 (1,10) — 중립 해역이라 사전 공개가 없고, 동쪽으로 5칸이 판에 들어간다
+    var sh = forceShip(st, 'P1', 3, line(1, 10, 3, false), '가기고');
+    var r = X.scan(st, 'P1', sh.id, X.idx(1, 10), 'E');
+    assert(r.ok, r.reason);
+    eq(r.revealed, B.scan.length + B.scan.flank * 2, '판명 칸 수');
+    eq(r.revealed, 13, '13칸');
+    var k = st.kn.P1;
+    assert(k.onset[X.idx(6, 10)], '정면 5번째 칸 미판명');
+    assert(!k.onset[X.idx(7, 10)], '정면 6번째 칸까지 판명됨');
+    assert(k.onset[X.idx(5, 11)] && k.onset[X.idx(5, 9)], '좌우 4번째 칸 미판명');
+    assert(!k.onset[X.idx(6, 11)] && !k.onset[X.idx(6, 9)], '좌우가 5번째까지 뻗음');
+    assert(!k.onset[X.idx(1, 11)] && !k.onset[X.idx(1, 9)], '원점 옆칸까지 판명됨 (좌우는 s=1부터)');
+    assert(!k.onset[X.idx(1, 10)], '원점 자신이 판명 대상에 들어감');
+    return '13칸 = 5 + 4 + 4';
+  });
+
+  test('탐지 — 대각 방향은 폐지됐다', function () {
     var st = bg();
     var sh = forceShip(st, 'P1', 3, line(3, 12, 3, false), '가기고');
-    var r = X.scan(st, 'P1', sh.id, X.idx(3, 12), 'E');
-    assert(r.ok, r.reason);
-    eq(r.revealed, 5, '판명 칸 수');
-    assert(st.kn.P1.onset[X.idx(8, 12)], '5번째 칸 미판명');
-    assert(!st.kn.P1.onset[X.idx(9, 12)], '6번째 칸까지 판명됨');
-    return '5칸 (시작 타일 제외)';
+    ['NE', 'NW', 'SE', 'SW'].forEach(function (d) {
+      fails(X.scan(st, 'P1', sh.id, X.idx(3, 12), d), '방향 오류');
+    });
+    eq(Object.keys(X.DIRS).length, 4, 'DIRS에 대각이 남아 있음');
+    eq(X.cooldownLeft(st, sh), 0, '거부된 탐지가 쿨타임을 먹음');
+    return '4방위만';
   });
 
   test('탐지 — 보드 밖으로 나가면 사거리 손실', function () {
     var st = bg();
-    var sh = forceShip(st, 'P1', 3, line(5, 20, 3, false), '가기고');
-    var r = X.scan(st, 'P1', sh.id, X.idx(5, 22), 'N');
+    var sh = forceShip(st, 'P1', 3, line(3, X.H - 5, 3, false), '가기고');
+    var r = X.scan(st, 'P1', sh.id, X.idx(3, X.H - 3), 'N');
     assert(r.ok, r.reason);
-    eq(r.revealed, 2, 'y23,y24 두 칸만 남음');
-    return '2칸 (클리핑)';
+    // 정면 y18,y19 2칸 + 좌우 (2,18)(4,18)(2,19)(4,19) 4칸 = 6칸. 나머지는 버려진다
+    eq(r.revealed, 6, '클리핑 후 칸 수');
+    return '6칸 (13칸 중 7칸 손실)';
   });
 
   test('탐지 — 자기 함선 타일에서만 가능', function () {
@@ -629,7 +666,7 @@
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
     var foe = forceShip(st, 'P2', 3, line(1, 3, 3, true), '구게괴');
-    forceShip(st, 'P2', 3, line(7, 20, 3, true), '가가가');
+    forceShip(st, 'P2', 3, line(X.W - 3, X.H - 1, 3, true), '가가가');
     foe.hp = 1;
     assert(X.fire(st, 'P1', me.id, X.idx(1, 3)).ok);
     assert(foe.sunk, '침몰하지 않음');
@@ -645,7 +682,7 @@
     var st = bg(); revealAll(st, 'P1');
     var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');
     var foe = forceShip(st, 'P2', 3, line(1, 3, 3, true), '구게괴');
-    forceShip(st, 'P2', 3, line(7, 20, 3, true), '가가가');
+    forceShip(st, 'P2', 3, line(X.W - 3, X.H - 1, 3, true), '가가가');
     foe.hp = 1;
     assert(X.fire(st, 'P1', me.id, X.idx(1, 3)).ok);
     ready(st);
@@ -658,20 +695,20 @@
 
   /* ══ 승리 조건 ═════════════════════════════════════════ */
 
-  test('상륙 — 타일 하나라도 25행 진입 시 즉시 승리 (§13-11)', function () {
+  test('상륙 — 타일 하나라도 마지막 행 진입 시 즉시 승리 (§13-11)', function () {
     var st = bg(); revealAll(st, 'P1');
-    var sh = forceShip(st, 'P1', 3, line(4, 21, 3, false), '가기고');
-    forceShip(st, 'P2', 3, line(0, 15, 3, true), '가가가');
-    var r = X.move(st, 'P1', sh.id, line(4, 22, 3, false), '구게괴');
+    var sh = forceShip(st, 'P1', 3, line(4, X.H - 4, 3, false), '가기고');
+    forceShip(st, 'P2', 3, line(0, X.H - 5, 3, true), '가가가');
+    var r = X.move(st, 'P1', sh.id, line(4, X.H - 3, 3, false), '구게괴');
     assert(r.ok, r.reason);
     assert(r.landed, '상륙 판정이 안 됨');
-    eq(sh.tiles.filter(function (t) { return X.xy(t).y === 24; }).length, 1, '한 칸만 걸쳤는지');
+    eq(sh.tiles.filter(function (t) { return X.xy(t).y === X.H - 1; }).length, 1, '한 칸만 걸쳤는지');
     eq(st.phase, 'OVER'); eq(st.winner, 'P1'); eq(st.winReason, 'LANDING');
     return '1칸 진입 → 즉시 승리';
   });
 
   test('상륙 — P2는 절대 y=0 이 목표', function () {
-    eq(X.landingY('P1'), 24); eq(X.landingY('P2'), 0);
+    eq(X.landingY('P1'), X.H - 1); eq(X.landingY('P2'), 0);
     var st = bg(); revealAll(st, 'P2');
     var sh = forceShip(st, 'P2', 3, line(4, 1, 3, false), '가기고');
     var r = X.move(st, 'P2', sh.id, line(4, 0, 3, false), '구게괴');
@@ -680,20 +717,20 @@
     return 'P2 상륙 승리';
   });
 
-  test('상륙 — 25행에 닿지 않으면 승리하지 않는다', function () {
+  test('상륙 — 마지막 행에 닿지 않으면 승리하지 않는다', function () {
     var st = bg(); revealAll(st, 'P1');
-    var sh = forceShip(st, 'P1', 3, line(4, 20, 3, false), '가기고');
-    var r = X.move(st, 'P1', sh.id, line(4, 21, 3, false), '구게괴');
+    var sh = forceShip(st, 'P1', 3, line(4, X.H - 6, 3, false), '가기고');
+    var r = X.move(st, 'P1', sh.id, line(4, X.H - 5, 3, false), '구게괴');
     assert(r.ok && !r.landed, '상륙이 잘못 판정됨');
     eq(st.phase, 'BATTLE');
     return 'OK';
   });
 
   test('상륙 — 쿨타임이 속도를 제한한다 (§13-12)', function () {
-    // 3칸 함선이 y9 → y24 를 가려면 최소 5회 이동. 쿨 9s + AP 3(7.5s) 이 병목.
+    // 3칸 함선이 자기 구역 끝에서 마지막 행까지 가려면 여러 번 이동해야 한다. 쿨 9s + AP 3(7.5s) 이 병목.
     var st = bg(); revealAll(st, 'P1');
     st.t = 0; st.ap.P1 = 0; st.apAccum.P1 = 0;
-    var sh = forceShip(st, 'P1', 3, line(4, 7, 3, false), '가기고');   // y7,8,9
+    var sh = forceShip(st, 'P1', 3, line(4, 5, 3, false), '가기고');   // y5,6,7 = 자기 구역 끝
     var moves = 0, guard = 0;
     while (st.phase === 'BATTLE' && guard++ < 4000) {
       X.advance(st, 100);
@@ -704,7 +741,7 @@
       if (r.ok) moves++;
     }
     assert(st.winner === 'P1', '상륙에 실패');
-    assert(st.t >= 40000, '너무 빨리 상륙함: ' + (st.t / 1000).toFixed(1) + 's');
+    assert(st.t >= 30000, '너무 빨리 상륙함: ' + (st.t / 1000).toFixed(1) + 's');
     return moves + '회 이동 / ' + (st.t / 1000).toFixed(1) + '초 소요';
   });
 

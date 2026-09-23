@@ -1,12 +1,21 @@
-/* WordShip prototype — UI (v0.7 드래그 조작)
+/* WordShip prototype — UI (v0.8 모드리스 조작)
  *
- * 방향: 최종적으로 버튼을 없애고 보드 위에서 마우스+키보드만으로 다 되게 한다.
- * 지금은 과도기 — 드래그를 주 조작으로 넣고 버튼은 남겨 둔다.
+ * 행동 버튼이 없다. 무슨 행동인지는 '어디서 드래그를 시작했는가'가 결정한다.
  *
- * 이동   함선 본체/테두리에서 드래그 시작 → 끌면 박스 미리보기 → 놓으면 단어 입력
- * 탐지   함선 타일에서 8방향 중 하나로 드래그 → 놓으면 즉시 실행 (끄는 동안 획득 칸 미리보기)
- * 식별   함선 선택 없음. 사거리 안 아무 칸에서 드래그 → 놓으면 단어 입력
- * 포격   목표 칸 클릭 → 즉시
+ *   ┌ 함선 선택됨 ────────────────────────────────────────────┐
+ *   │ 함선 타일 드래그      → 탐지                              │
+ *   │ 초록 테두리 드래그    → 이동                              │
+ *   │ 붉은 사거리 안 클릭   → 포격 목표 지정 → 「포격」 버튼     │
+ *   │ 사거리 밖 클릭        → 선택 취소                         │
+ *   └──────────────────────────────────────────────────────────┘
+ *   ┌ 선택 없음 ──────────────────────────────────────────────┐
+ *   │ 함선 타일 드래그      → 탐지                              │
+ *   │ 그 외 타일 드래그     → 식별                              │
+ *   │ 함선 클릭             → 선택                              │
+ *   └──────────────────────────────────────────────────────────┘
+ *
+ * 그래서 '함선 본체 = 탐지', '테두리 = 이동' 으로 채널이 갈린다.
+ * 이동 시작 칸에서 본체가 빠진 것은 이 때문이다 (엔진은 여전히 허용한다).
  */
 (function (WS) {
   'use strict';
@@ -19,10 +28,11 @@
     bot: { P1: false, P2: true },
     paused: false, speed: 1, lastTick: 0,
     setupPlayer: 'P1', setupLen: null,
-    sel: { shipId: null, act: null, a: null, b: null },
-    drag: null,          // { from, cur, cells, dir }
-    cand: '', hl: null, rng: null, moves: null, preview: null,
-    ovl: { move: null, fire: null, ident: null },   // 항상 보이는 사거리 오버레이
+    sel: { shipId: null, act: null, a: null, b: null },   // act 는 드래그가 끝나야 정해진다
+    drag: null,          // { from, cur, act, shipId, cells, dir }
+    fireAt: null,        // 지정된 포격 목표 칸
+    cand: '', hl: null, preview: null,
+    ovl: { move: null, fire: null, ident: null },   // 선택 상태에 따라 보이는 오버레이
     msg: '', err: false, cells: null, gridFor: null
   };
 
@@ -42,12 +52,21 @@
   }
   function resetSel() {
     G.sel = { shipId: null, act: null, a: null, b: null };
-    G.cand = ''; G.hl = G.rng = G.moves = G.preview = G.drag = null;
+    G.fireAt = null;
+    G.cand = ''; G.hl = G.preview = G.drag = null;
     G.ovl = { move: null, fire: null, ident: null };
   }
-  function clearTarget() {
-    G.sel.a = G.sel.b = null; G.cand = ''; G.preview = null; G.drag = null;
-    $('word').value = ''; $('word').placeholder = '단어'; computeHL();
+  /** 잡아 둔 단어 박스만 버린다 (함선 선택은 유지) */
+  function clearBox() {
+    G.sel.act = null; G.sel.a = G.sel.b = null;
+    G.cand = ''; G.preview = null; G.drag = null;
+    $('word').value = ''; $('word').placeholder = '단어';
+  }
+  function clearTarget() { clearBox(); G.fireAt = null; computeHL(); }
+  /** 함선 선택 해제 — 이 상태에서 드래그하면 식별이다 */
+  function deselect(msg) {
+    G.sel.shipId = null; G.fireAt = null; clearBox(); computeHL();
+    if (msg) say(msg);
   }
   function say(m, err) { G.msg = m; G.err = !!err; }
   function viewer() { return G.st.phase === 'SETUP' ? G.setupPlayer : G.control; }
@@ -66,14 +85,15 @@
   }
 
   /* ── 행동 가능 여부 ────────────────────────────────────── */
-  function why(act) {
+  function why(act, sh) {
     var st = G.st;
+    if (st.phase !== 'BATTLE') return '전투 중이 아님';
     if (st.ap[G.control] < COST[act]) return 'AP 부족 — ' + COST[act] + ' 필요, ' + st.ap[G.control] + ' 보유';
     if (act === 'identify') {
       var any = X.fleetOf(st, G.control).some(function (s) { return !s.sunk && X.cooldownLeft(st, s) <= 0; });
       return any ? null : '쓸 수 있는 함선이 없음 (전부 쿨타임)';
     }
-    var sh = selShip();
+    sh = sh || selShip();
     if (!sh) return '함선을 먼저 고르세요 (보드에서 아군 함선 클릭, 또는 Tab)';
     if (sh.sunk) return '침몰한 함선입니다';
     var cd = X.cooldownLeft(st, sh);
@@ -83,12 +103,11 @@
   }
 
   /* ── 방향/박스 스냅 ────────────────────────────────────── */
-  function snapDir8(dx, dy) {
+  /** 탐지는 4방위뿐이다 (v0.8에서 대각 폐지). 가장 많이 끈 축으로 스냅한다. */
+  function snapDir4(dx, dy) {
     if (!dx && !dy) return null;
-    var ax = Math.abs(dx), ay = Math.abs(dy), sx = Math.sign(dx), sy = Math.sign(dy);
-    if (ax > ay * 2) return sx > 0 ? 'E' : 'Wd';
-    if (ay > ax * 2) return sy > 0 ? 'N' : 'S';
-    return sy > 0 ? (sx > 0 ? 'NE' : 'NW') : (sx > 0 ? 'SE' : 'SW');
+    if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? 'E' : 'Wd';
+    return dy > 0 ? 'N' : 'S';
   }
   /** from 에서 cur 방향으로 len 칸 직선 박스. 보드를 벗어나면 null */
   function snapBox(from, cur, len) {
@@ -107,69 +126,83 @@
   }
 
   /* ── 사거리 오버레이 + 클릭 가능 칸 ─────────────────────
-   * 함선을 고르기만 해도 이동 테두리와 포격 사거리가 같이 보인다.
-   * 색이 겹치지 않도록 채널을 나눈다 — 포격/식별은 배경 틴트, 이동은 테두리 링.
+   * 오버레이는 선택 상태가 정한다.
+   *   함선 선택됨 → 초록 테두리(이동 시작 칸) + 붉은 칠(포격 사거리)
+   *   선택 없음   → 파란 칠(식별 시작 가능 칸)
+   * 색이 겹쳐도 섞이지 않도록 채널을 나눈다 — 사거리는 배경 틴트, 이동은 링.
    */
+  var STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  /** 테두리 칸 중 실제로 합법 이동 박스를 시작할 수 있는 칸 (난수를 쓰지 않는다) */
+  function moveStarts(sh, ring) {
+    var st = G.st, k = st.kn[sh.owner], out = new Set();
+    ring.forEach(function (r) {
+      var p = X.xy(r);
+      for (var di = 0; di < STEPS.length; di++) {
+        var d = STEPS[di], cells = [], ok = true;
+        for (var q = 0; q < sh.len; q++) {
+          var nx = p.x + d[0] * q, ny = p.y + d[1] * q;
+          if (!X.inB(nx, ny)) { ok = false; break; }
+          var c = X.idx(nx, ny);
+          if (!k.onset[c]) { ok = false; break; }            // 초성 미판명
+          var o = st.tiles[c].occupant;
+          if (o && o !== sh.id && st.ships[o].owner === sh.owner) { ok = false; break; }
+          cells.push(c);
+        }
+        if (!ok) continue;
+        if (cells.every(function (c) { return sh.tiles.indexOf(c) >= 0; })) continue;   // 자기 자리
+        if (!X.canName(st, cells)) continue;
+        out.add(r); return;
+      }
+    });
+    return out;
+  }
+
   function computeHL() {
-    G.hl = null; G.rng = null;
+    G.hl = null;
     G.ovl = { move: null, fire: null, ident: null };
-    var st = G.st, s = G.sel, i;
-    if (st.phase !== 'BATTLE') return;
+    var st = G.st, i;
+    if (!st || st.phase !== 'BATTLE') return;
     var sh = selShip();
 
-    // 식별은 함선과 무관하므로 그때는 개별 함선 사거리를 숨긴다
-    if (sh && !sh.sunk && s.act !== 'identify') {
-      var mv = new Set(), fr = new Set(), r = X.fireRange(sh.len);
+    if (sh && !sh.sunk) {
+      // 아군 함선이 깔고 앉은 칸은 테두리에서 뺀다 — 본체 드래그는 '탐지'로 예약돼 있다
+      var mine = new Set();
+      X.fleetOf(st, G.control).forEach(function (s) {
+        if (!s.sunk) s.tiles.forEach(function (t) { mine.add(t); });
+      });
+      var ring = new Set(), fire = new Set(), r = X.fireRange(sh.len);
       for (i = 0; i < X.N; i++) {
-        if (X.shipWithin(st, sh, i, B.move.adjacency)) mv.add(i);
-        if (X.shipWithin(st, sh, i, r)) fr.add(i);
+        if (X.shipWithin(st, sh, i, r)) fire.add(i);
+        if (!mine.has(i) && X.shipWithin(st, sh, i, B.move.adjacency)) ring.add(i);
       }
-      G.ovl.move = mv; G.ovl.fire = fr;
-    }
-    if (!s.act) return;
-
-    if (s.act === 'identify') {
-      var kn = st.kn[G.control], set = new Set();
-      var live = X.fleetOf(st, G.control).filter(function (x) { return !x.sunk; });
-      for (i = 0; i < X.N; i++) {
-        if (!kn.onset[i]) continue;
-        if (live.some(function (x) { return X.shipWithin(st, x, i, B.identify.range); })) set.add(i);
-      }
-      G.ovl.ident = set; G.rng = set;
-      if (s.a == null) G.hl = set;
+      G.ovl.fire = fire;
+      if (!sh.identified) { G.ovl.move = ring; G.hl = moveStarts(sh, ring); }
       return;
     }
 
-    if (!sh || sh.sunk) return;
-    if (s.act === 'move') {
-      if (sh.identified) return;
-      G.rng = G.ovl.move;
-      if (s.a == null) {
-        G.moves = X.findMoves(st, sh);
-        var starts = new Set();
-        G.moves.forEach(function (m) { starts.add(m.cells[0]); });
-        G.hl = starts;
-      }
-    } else if (s.act === 'scan') {
-      G.hl = new Set(sh.tiles);
-    } else if (s.act === 'fire') {
-      G.rng = G.ovl.fire;
+    // 선택 없음 — 식별 시작 가능 칸 (함대 전체 사거리 기준)
+    var kn = st.kn[G.control], set = new Set();
+    var live = X.fleetOf(st, G.control).filter(function (x) { return !x.sunk; });
+    if (!live.length) return;
+    for (i = 0; i < X.N; i++) {
+      if (!kn.onset[i]) continue;
+      if (live.some(function (x) { return X.shipWithin(st, x, i, B.identify.range); })) set.add(i);
     }
+    G.ovl.ident = set;
   }
 
   /* ── 선택 ──────────────────────────────────────────────── */
   function pickShip(id, quiet) {
     var sh = G.st.ships[id];
-    if (!sh || sh.owner !== G.control) return;
-    G.sel.shipId = id; G.sel.a = G.sel.b = null; G.cand = ''; G.preview = null;
-    $('word').value = ''; computeHL();
-    if (!quiet) {
-      var cd = X.cooldownLeft(G.st, sh);
-      say('L' + sh.len + ' 「' + sh.name.join('') + '」 HP ' + sh.hp + '/' + sh.maxHp +
-        ' · 포격 ' + X.fireRange(sh.len) + '칸' +
-        (sh.identified ? ' · 식별당함(이동 불가)' : '') + (cd > 0 ? ' · 쿨 ' + (cd / 1000).toFixed(1) + 's' : '') +
-        (G.sel.act ? ' — ' + ACTNAME[G.sel.act] : ' — 초록 링=이동 가능, 붉은 칠=포격 사거리. 행동을 고르세요 (1~4)'));
-    }
+    if (!sh || sh.owner !== G.control || sh.sunk) return;
+    G.sel.shipId = id; G.fireAt = null; clearBox(); computeHL();
+    if (quiet) return;
+    var cd = X.cooldownLeft(G.st, sh);
+    say('L' + sh.len + ' 「' + sh.name.join('') + '」 HP ' + sh.hp + '/' + sh.maxHp +
+      ' · 포격 ' + X.fireRange(sh.len) + '칸' +
+      (sh.identified ? ' · 식별당함(이동 불가)' : '') + (cd > 0 ? ' · 쿨 ' + (cd / 1000).toFixed(1) + 's' : '') +
+      ' — 초록 테두리 드래그=이동, 함선 위 드래그=탐지, 붉은 칸 클릭=포격 목표');
   }
   function cycleShip() {
     var list = X.fleetOf(G.st, G.control).filter(function (s) { return !s.sunk; });
@@ -182,40 +215,32 @@
     pickShip(list[(at + 1) % list.length].id);
   }
 
-  var TIPS = {
-    move: '함선 본체나 테두리(초록)에서 드래그해 목적지를 정하세요. 놓으면 단어 입력.',
-    scan: '함선 타일에서 원하는 방향으로 드래그 → 놓으면 즉시 탐지. (방향 버튼도 가능)',
-    identify: '함선을 고를 필요 없습니다. 파란 범위 안에서 드래그해 3~4칸 박스를 잡으세요.',
-    fire: '파란 범위 안 아무 칸이나 누르면 즉시 발사됩니다.'
-  };
-  function setAct(act) {
-    G.sel.act = act; G.sel.a = G.sel.b = null; G.cand = ''; G.preview = null; G.drag = null;
-    $('word').value = ''; $('word').placeholder = '단어';
-    computeHL();
-    var w = why(act);
-    if (w) { say(ACTNAME[act] + ' — ' + w, true); return; }
-    say(ACTNAME[act] + ' (AP ' + COST[act] + ') — ' + TIPS[act]);
-  }
-
-  /* ── 드래그 ────────────────────────────────────────────── */
-  function dragStartOK(i) {
-    var st = G.st, s = G.sel;
-    if (st.phase !== 'BATTLE' || !s.act) return false;
-    if (s.act === 'fire') return false;
-    if (s.act === 'identify') return !!(G.rng && G.rng.has(i));
-    var sh = selShip(); if (!sh) return false;
-    if (s.act === 'scan') return sh.tiles.indexOf(i) >= 0;
-    if (s.act === 'move') return X.shipWithin(st, sh, i, B.move.adjacency);
-    return false;
+  /* ── 드래그 ────────────────────────────────────────────
+   * 누른 칸 하나가 행동을 결정한다. 모드 버튼이 없는 이유다.
+   */
+  function dragIntent(i) {
+    var st = G.st, p = G.control;
+    var occ = st.tiles[i].occupant;
+    // ① 아군 함선 타일 → 탐지. 선택 여부와 무관하며, 누른 칸의 함선이 쏜다
+    if (occ && st.ships[occ].owner === p && !st.ships[occ].sunk)
+      return { act: 'scan', shipId: occ };
+    var sh = selShip();
+    // ② 함선 선택됨 → 초록 테두리에서만 이동
+    if (sh && !sh.sunk)
+      return (G.ovl.move && G.ovl.move.has(i)) ? { act: 'move', shipId: sh.id } : null;
+    // ③ 선택 없음 → 식별
+    return (G.ovl.ident && G.ovl.ident.has(i)) ? { act: 'identify', shipId: null } : null;
   }
 
   function onDown(i) {
     var st = G.st;
-    if (st.phase === 'SETUP') { G.drag = { from: i, cur: i, setup: true }; return; }
-    if (!dragStartOK(i)) return;
-    G.drag = { from: i, cur: i };
-    G.sel.a = i; G.sel.b = null; G.preview = null;
-    computeHL(); paint();
+    if (st.phase === 'SETUP') { G.drag = { from: i, cur: i }; return; }
+    if (st.phase !== 'BATTLE') return;
+    var it = dragIntent(i);
+    if (!it) return;
+    G.drag = { from: i, cur: i, act: it.act, shipId: it.shipId, cells: null, dir: null };
+    G.preview = null;
+    paint();
   }
 
   function onMove(i) {
@@ -227,30 +252,28 @@
 
   function updatePreview() {
     var d = G.drag, st = G.st;
-    G.preview = null; d.cells = null; d.dir = null;
-    if (!d || d.cur === d.from) return;
+    G.preview = null;
+    if (!d) return;
+    d.cells = null; d.dir = null;
+    if (d.cur === d.from) return;
 
     if (st.phase === 'SETUP') {
       var box = snapBox(d.from, d.cur, G.setupLen || 3);
       if (box) { d.cells = box; G.preview = new Set(box); }
       return;
     }
-    var a = X.xy(d.from), b = X.xy(d.cur);
-    if (G.sel.act === 'scan') {
-      var dir = snapDir8(b.x - a.x, b.y - a.y);
+    if (d.act === 'scan') {
+      var a = X.xy(d.from), b = X.xy(d.cur);
+      var dir = snapDir4(b.x - a.x, b.y - a.y);
       if (!dir) return;
       d.dir = dir;
-      var dd = X.DIRS[dir], cells = [];
-      for (var s = 1; s <= B.scan.length; s++) {
-        var nx = a.x + dd[0] * s, ny = a.y + dd[1] * s;
-        if (!X.inB(nx, ny)) break;
-        cells.push(X.idx(nx, ny));
-      }
-      d.cells = cells; G.preview = new Set(cells);
+      d.cells = X.scanCells(d.from, dir);
+      G.preview = new Set(d.cells);
       return;
     }
-    var len = G.sel.act === 'move'
-      ? (selShip() ? selShip().len : 3)
+    var sh = d.shipId ? st.ships[d.shipId] : null;
+    var len = d.act === 'move'
+      ? (sh ? sh.len : 3)
       : dragLen(d.from, d.cur, B.identify.minLen, B.identify.maxLen);
     var box2 = snapBox(d.from, d.cur, len);
     if (box2) { d.cells = box2; G.preview = new Set(box2); }
@@ -263,24 +286,17 @@
 
     if (st.phase === 'SETUP') {
       if (d.cells) { G.sel.a = d.cells[0]; G.sel.b = d.cells[d.cells.length - 1]; commitSetupBox(d.cells); }
-      else if (d.from === d.cur) onSetupClick(d.from);
       G.preview = null; return paint();
     }
-
-    if (d.from === d.cur) {           // 제자리 클릭 — 앵커만 잡고 대기
-      G.preview = null; computeHL();
-      say(G.sel.act === 'scan' ? '이 타일에서 방향으로 드래그하거나 방향 버튼을 누르세요.'
-        : '끌어서 박스를 잡거나, 반대쪽 끝 칸을 클릭하세요.');
-      return paint();
-    }
-    if (!d.cells) { G.preview = null; return paint(); }
-
-    if (G.sel.act === 'scan') {
-      G.preview = null;
-      return exec(X.scan(st, G.control, G.sel.shipId, d.from, d.dir));
-    }
-    G.sel.a = d.cells[0]; G.sel.b = d.cells[d.cells.length - 1];
     G.preview = null;
+    if (!d.cells) return paint();
+
+    if (d.act === 'scan') return exec(X.scan(st, G.control, d.shipId, d.from, d.dir));
+
+    G.sel.act = d.act;
+    if (d.act === 'move') G.sel.shipId = d.shipId;
+    G.fireAt = null;
+    G.sel.a = d.cells[0]; G.sel.b = d.cells[d.cells.length - 1];
     commitBox(d.cells);
     paint();
   }
@@ -305,38 +321,43 @@
       ' — 함명을 입력하고 Enter.' + (G.cand ? ' (빈칸이면 「' + G.cand + '」)' : ''));
   }
 
-  /* ── 클릭 (드래그 없이 두 번 찍는 방식도 유지) ─────────── */
+  /* ── 클릭 (드래그하지 않고 뗀 경우) ─────────────────────
+   *   아군 함선        → 선택
+   *   사거리 안 빈칸   → 포격 목표 지정 (같은 칸을 다시 누르면 발사)
+   *   사거리 밖        → 선택 취소
+   */
   function onClick(i) {
-    var st = G.st;
-    if (st.phase === 'OVER' || st.phase === 'SETUP') return;
-    var p = G.control, s = G.sel;
+    var st = G.st, p = G.control;
+    if (st.phase !== 'BATTLE') return paint();
     var occ = st.tiles[i].occupant;
-    var mineHere = occ && st.ships[occ].owner === p;
+    if (occ && st.ships[occ].owner === p && !st.ships[occ].sunk) { pickShip(occ); return paint(); }
 
-    if (!s.act) {
-      if (mineHere) { pickShip(occ); return paint(); }
-      say('행동을 고르세요 (1 이동 / 2 탐지 / 3 식별 / 4 포격)', true); return paint();
+    var sh = selShip();
+    if (sh && !sh.sunk) {
+      if (G.ovl.fire && G.ovl.fire.has(i)) {
+        if (G.fireAt === i) return fireNow();
+        G.fireAt = i; clearBox();
+        say('포격 목표 ' + X.label(p, i) + ' — 「포격」 버튼(또는 같은 칸 한 번 더)으로 발사. AP ' + COST.fire);
+        return paint();
+      }
+      deselect('포격 사거리 밖 — 선택을 풀었습니다. 이제 타일을 드래그하면 식별입니다.');
+      return paint();
     }
-    if (s.act === 'fire') {
-      if (mineHere) { pickShip(occ); return paint(); }
-      var w = why('fire'); if (w) { say('포격 — ' + w, true); return paint(); }
-      if (G.rng && !G.rng.has(i)) { say('사거리 밖입니다 (최대 ' + X.fireRange(selShip().len) + '칸)', true); return paint(); }
-      return exec(X.fire(st, p, s.shipId, i));
-    }
-    if (s.act === 'scan') {
-      if (mineHere) { pickShip(occ); G.sel.a = i; computeHL(); return paint(); }
-      say('탐지는 자기 함선 타일에서 방향으로 드래그하세요.', true); return paint();
-    }
-    // move / identify — 두 번째 클릭이면 박스 확정
-    if (s.a != null && i !== s.a) {
-      var len = s.act === 'move' ? (selShip() ? selShip().len : 0) : dragLen(s.a, i, B.identify.minLen, B.identify.maxLen);
-      var box = snapBox(s.a, i, len);
-      if (box) { s.b = box[box.length - 1]; commitBox(box); return paint(); }
-    }
-    if (s.act === 'move' && mineHere) { pickShip(occ); return paint(); }
-    if (dragStartOK(i)) { s.a = i; s.b = null; computeHL(); say('끌거나, 반대쪽 끝 칸을 클릭하세요.'); return paint(); }
-    say(s.act === 'move' ? '함선 본체나 테두리(초록)에서 시작해야 합니다.' : '사거리 밖이거나 초성 미판명 칸입니다.', true);
+
+    if (G.sel.a != null) { clearBox(); say('식별 박스 취소.'); return paint(); }
+    say(G.ovl.ident && G.ovl.ident.has(i)
+      ? '여기서 드래그하면 식별(3~4칸)입니다. 아군 함선을 클릭하면 선택됩니다.'
+      : '아군 함선을 클릭해 고르거나, 파란 범위 안에서 드래그해 식별하세요.');
     paint();
+  }
+
+  function fireNow() {
+    var sh = selShip();
+    if (!sh) { say('함선을 먼저 고르세요.', true); return paint(); }
+    if (G.fireAt == null) { say('붉게 칠한 사거리 안에서 목표 칸을 클릭하세요.', true); return paint(); }
+    var w = why('fire', sh); if (w) { say('포격 — ' + w, true); return paint(); }
+    var t = G.fireAt; G.fireAt = null;
+    exec(X.fire(G.st, G.control, sh.id, t));
   }
 
   function onSetupClick(i) {
@@ -377,6 +398,7 @@
 
   function buildGrid() {
     var v = viewer(), board = $('board');
+    board.style.setProperty('--cols', X.W);
     board.innerHTML = '';
     G.cells = new Array(X.N);
     var frag = document.createDocumentFragment(), i;
@@ -390,14 +412,34 @@
       for (var xx = 0; xx < X.W; xx++) {
         var id = X.idx(xx, yy), el = mk('div', 'cell');
         el.dataset.i = id;
-        var t = mk('span', 't'), bar = mk('i', 'hb'), inner = mk('b', ''), mark = mk('i', 'mk');
-        bar.appendChild(inner); el.appendChild(t); el.appendChild(bar); el.appendChild(mark);
+        var t = mk('span', 't'), bar = mk('i', 'hb'), inner = mk('b', ''), mark = mk('i', 'mk'),
+            hull = mk('i', 'hull');
+        bar.appendChild(inner);
+        el.appendChild(t); el.appendChild(bar); el.appendChild(mark); el.appendChild(hull);
         frag.appendChild(el);
-        G.cells[id] = { el: el, txt: t, bar: bar, fill: inner, mk: mark };
+        G.cells[id] = { el: el, txt: t, bar: bar, fill: inner, mk: mark, hull: hull, hullCls: '' };
       }
     });
     board.appendChild(frag);
     G.gridFor = v;
+    // 보드가 화면보다 길면 스크롤이 생긴다. 맨 위는 '상대 끝'이라 내 함대가 안 보인다 —
+    // 두 시점 모두 자기 1행이 아래쪽이므로, 새로 그릴 때마다 아래로 붙여 둔다.
+    var sc = board.parentNode;
+    if (sc && sc.scrollTop != null) sc.scrollTop = sc.scrollHeight;
+  }
+
+  /* 함선 테두리 — 같은 함선이 아닌 쪽에만 선을 긋는다.
+   * 배가 나란히 붙어도 어디까지가 한 척인지 보인다.
+   * 화면 위/아래는 시점에 따라 y 방향이 뒤집히므로 up 으로 보정한다. */
+  var HSIDE = ['hT', 'hB', 'hL', 'hR'];
+  function hullClass(hullId, i, up) {
+    var h = hullId[i], p = X.xy(i), cls = 'hull on';
+    var n = [[0, up], [0, -up], [-1, 0], [1, 0]];
+    for (var k = 0; k < 4; k++) {
+      var nx = p.x + n[k][0], ny = p.y + n[k][1];
+      if (!X.inB(nx, ny) || hullId[X.idx(nx, ny)] !== h) cls += ' ' + HSIDE[k];
+    }
+    return cls;
   }
 
   function paint() {
@@ -406,11 +448,23 @@
     if (G.gridFor !== v || !G.cells) buildGrid();
     var omni = G.sandbox, sh = selShip();
     var selSet = new Set(G.preview ? [] : (boxCells() || []));
-    var pickSet = (sh && !sh.sunk && st.phase === 'BATTLE') ? new Set(sh.tiles) : null;
     var dep = X.deployRange(v), setup = st.phase === 'SETUP';
+    var anchor = G.drag ? G.drag.from : null;
+    // 선택된 함선은 테두리를 노랗게 물들여 표시한다 (윤곽선을 겹치지 않는다)
+    var pickSet = (sh && !sh.sunk && st.phase === 'BATTLE') ? new Set(sh.tiles) : null;
+    var up = (v === 'P1') ? 1 : -1;
+    var i;
 
-    for (var i = 0; i < X.N; i++) {
-      var t = X.projectTile(st, v, i, omni), c = G.cells[i], cls = 'cell', txt = '';
+    // 1단계 — 투영해 두고, 어느 칸이 어느 함선인지 모은다 (테두리 계산용)
+    var proj = new Array(X.N), hullId = new Array(X.N);
+    for (i = 0; i < X.N; i++) {
+      var pt = proj[i] = X.projectTile(st, v, i, omni);
+      hullId[i] = pt.mine ? pt.mine.id : (pt.enemy ? pt.enemy.id : null);
+    }
+
+    // 2단계 — 렌더
+    for (i = 0; i < X.N; i++) {
+      var t = proj[i], c = G.cells[i], cls = 'cell', txt = '';
       if (t.onsetKnown) cls += ' known';
       if (t.syl) { txt = t.syl; cls += t.stale ? ' syl stale' : ' syl'; } else if (t.onset) txt = t.onset;
 
@@ -432,17 +486,21 @@
       if (pickSet && pickSet.has(i)) cls += ' pick';
       if (G.preview && G.preview.has(i)) cls += ' prev';
       if (selSet.has(i)) cls += ' sel';
-      if (G.sel.a === i) cls += ' anchor';
+      if (anchor === i) cls += ' anchor';
 
       var hp = t.mine ? t.mine : (t.enemyState || null);
       if (hp) { c.bar.style.display = 'block'; c.fill.style.width = Math.max(0, (hp.hp / hp.maxHp) * 100) + '%'; }
       else c.bar.style.display = 'none';
-      var mkc = 'mk' + (t.exposed ? ' ex' : '') + (marked ? ' id' : '');
+
+      var hc = hullId[i] ? hullClass(hullId, i, up) : 'hull';
+      if (c.hullCls !== hc) { c.hull.className = hc; c.hullCls = hc; }
+
+      var mkc = 'mk' + (t.exposed ? ' ex' : '') + (marked ? ' id' : '') + (G.fireAt === i ? ' tgt' : '');
       if (c.mk.className !== mkc) c.mk.className = mkc;
       if (c.el.className !== cls) c.el.className = cls;
       if (c.txt.textContent !== txt) c.txt.textContent = txt;
     }
-    $('viewLabel').textContent = v + ' 시점 — 25행(상륙 목표)이 위쪽';
+    $('viewLabel').textContent = v + ' 시점 — ' + B.win.landingRow + '행(상륙 목표)이 위쪽';
     renderStatus(); renderPanels(); renderLog();
   }
 
@@ -481,13 +539,20 @@
     $('hint').classList.toggle('err', G.err);
     if (setup) { renderSetupFleet(); $('btnStart').disabled = !X.setupComplete(st); return; }
     renderFleet();
-    var act = G.sel.act;
-    $('dirRow').classList.toggle('hidden', act !== 'scan');
-    $('wordRow').classList.toggle('hidden', !(act === 'move' || act === 'identify'));
-    Array.prototype.forEach.call(document.querySelectorAll('.acts button'), function (b) {
-      b.classList.toggle('on', b.dataset.act === act);
-      b.classList.toggle('dim', !!why(b.dataset.act));
-    });
+    var sh = selShip(), act = G.sel.act, picked = !!(sh && !sh.sunk);
+
+    $('modeTag').className = 'mode' + (picked ? ' on' : '');
+    $('modeTag').textContent = picked
+      ? '선택 L' + sh.len + ' 「' + sh.name.join('') + '」 — 테두리 드래그=이동 · 함선 위 드래그=탐지 · 붉은 칸 클릭=포격'
+      : '선택 없음 — 함선 클릭=선택 · 함선 위 드래그=탐지 · 파란 칸 드래그=식별';
+
+    $('fireRow').classList.toggle('hidden', !picked);
+    $('btnFire').disabled = !(picked && G.fireAt != null);
+    $('fireAt').textContent = G.fireAt == null
+      ? '목표 미지정 — 붉은 칸을 클릭하세요'
+      : '목표 ' + X.label(G.control, G.fireAt);
+    $('wordRow').classList.toggle('hidden', !((act === 'move' || act === 'identify') && G.sel.b != null));
+    $('wordTag').textContent = act === 'move' ? '이동 단어' : '식별 — 적 함명 추측';
   }
 
   function renderSetupFleet() {
@@ -537,41 +602,36 @@
   }
   function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
 
-  function scanOrigin(sh, dirKey) {
-    var d = X.DIRS[dirKey];
-    return sh.tiles.reduce(function (best, t) {
-      var a = X.xy(t), b = X.xy(best);
-      return (a.x * d[0] + a.y * d[1]) > (b.x * d[0] + b.y * d[1]) ? t : best;
-    }, sh.tiles[0]);
-  }
-
   /* ── 바인딩 ────────────────────────────────────────────── */
   function bind() {
     $('btnNew').onclick = newGame;
     $('seed').onkeydown = function (e) { if (e.key === 'Enter') newGame(); };
     $('omni').onchange = function () { G.sandbox = this.checked; lastLogLen = -1; paint(); };
 
-    var board = $('board');
-    var moved = false;
+    /* 누름은 드래그가 될 수도, 클릭이 될 수도 있다. 어느 쪽이든 press 가 먼저 잡는다 —
+     * onDown 이 드래그를 시작하지 않은 칸(사거리 안 빈칸 등)에서도 클릭이 살아 있어야 한다. */
+    var board = $('board'), press = null;
     board.onmousedown = function (e) {
       if (e.button !== 0) return;
       var c = e.target.closest('.cell'); if (!c) return;
-      e.preventDefault(); moved = false;
-      onDown(+c.dataset.i);
+      e.preventDefault();
+      press = { from: +c.dataset.i, moved: false };
+      onDown(press.from);
     };
     board.onmousemove = function (e) {
-      if (!G.drag) return;
+      if (!press) return;
       var c = e.target.closest('.cell'); if (!c) return;
       var i = +c.dataset.i;
-      if (i !== G.drag.from) moved = true;
-      onMove(i);
+      if (i !== press.from) press.moved = true;
+      if (G.drag) onMove(i);
     };
     document.onmouseup = function () {
-      if (!G.drag) return;
-      var same = G.drag.from === G.drag.cur;
-      if (same && !moved) { var f = G.drag.from; G.drag = null; G.preview = null;
-        if (G.st.phase === 'SETUP') onSetupClick(f); else onClick(f); return; }
-      onUp();
+      if (!press) return;
+      var f = press.from, moved = press.moved;
+      press = null;
+      if (moved) return onUp();
+      G.drag = null; G.preview = null;
+      if (G.st.phase === 'SETUP') onSetupClick(f); else onClick(f);
     };
 
     $('btnPause').onclick = function () {
@@ -625,56 +685,35 @@
       resetSel(); G.lastTick = performance.now(); G.paused = false; G.gridFor = null;
       var first = X.fleetOf(G.st, G.control).filter(function (s) { return !s.sunk; })[0];
       if (first) pickShip(first.id, true);
-      say('전투 시작. 함선을 고르고 행동(1~4)을 누른 뒤 보드에서 드래그하세요.');
+      say('전투 시작. 함선을 클릭해 고르고, 초록 테두리를 드래그하면 이동입니다.');
       paint();
     };
 
-    Array.prototype.forEach.call(document.querySelectorAll('.acts button'), function (b) {
-      b.onclick = function () { setAct(b.dataset.act); paint(); };
-    });
     $('fleet').onclick = function (e) {
       var d = e.target.closest('[data-ship]'); if (!d) return;
       pickShip(d.dataset.ship); paint();
     };
-    $('dirRow').onclick = function (e) {
-      var d = e.target.closest('[data-dir]'); if (!d) return;
-      var sh = selShip();
-      if (!sh) { say('함선을 먼저 고르세요.', true); return paint(); }
-      var w = why('scan'); if (w) { say('탐지 — ' + w, true); return paint(); }
-      var from = (G.sel.a != null && sh.tiles.indexOf(G.sel.a) >= 0) ? G.sel.a : scanOrigin(sh, d.dataset.dir);
-      exec(X.scan(G.st, G.control, sh.id, from, d.dataset.dir));
-    };
+    $('btnFire').onclick = fireNow;
     $('btnSuggest').onclick = function () {
       if (!G.cand) { say('먼저 보드에서 박스를 잡으세요.', true); return paint(); }
       $('word').value = G.cand; paint();
     };
     $('word').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); doExec(); } };
     $('btnExec').onclick = doExec;
-    $('btnCancel').onclick = function () { clearTarget(); say('선택 취소.'); paint(); };
+    $('btnCancel').onclick = function () { deselect('선택 취소 — 드래그하면 식별입니다.'); paint(); };
 
     $('btnTests').onclick = runTests;
     $('btnCloseTests').onclick = function () { $('testsOverlay').classList.add('hidden'); };
 
+    /* 행동 단축키(1~4)와 방향키(WASD·QEZC)는 v0.8에서 없앴다 —
+     * 모드가 사라졌고 탐지 방향은 드래그가 정한다. */
     document.onkeydown = function (e) {
       if (e.target && e.target.tagName === 'INPUT') return;
       if (G.st.phase !== 'BATTLE') return;
-      var map = { '1': 'move', '2': 'scan', '3': 'identify', '4': 'fire' };
-      if (map[e.key]) { setAct(map[e.key]); return paint(); }
       if (e.key === 'Tab') { e.preventDefault(); cycleShip(); return paint(); }
-      if (e.key === 'Escape') { clearTarget(); say('선택 취소.'); return paint(); }
+      if (e.key === 'Escape') { deselect('선택 취소 — 드래그하면 식별입니다.'); return paint(); }
       if (e.key === ' ') { e.preventDefault(); $('btnPause').onclick(); return; }
-      var dirs = { w: 'N', s: 'S', a: 'Wd', d: 'E', q: 'NW', e: 'NE', z: 'SW', c: 'SE' };
-      var dk = dirs[String(e.key).toLowerCase()];
-      if (dk && G.sel.act === 'scan') {
-        var sh = selShip(); if (!sh) return;
-        var w = why('scan');
-        if (w) say('탐지 — ' + w, true);
-        else {
-          var from = (G.sel.a != null && sh.tiles.indexOf(G.sel.a) >= 0) ? G.sel.a : scanOrigin(sh, dk);
-          exec(X.scan(G.st, G.control, sh.id, from, dk));
-        }
-        paint();
-      }
+      if (e.key === 'Enter' && G.fireAt != null) { e.preventDefault(); fireNow(); }
     };
   }
 

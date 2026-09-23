@@ -19,9 +19,9 @@
 
   var C_UNKNOWN = 0, C_CONTACT = 1, C_CLEAR = 2, C_GHOST = 3;
 
+  /* 탐지 방향 — 4방위만. 대각은 v0.8에서 삭제했다. */
   var DIRS = {
-    N:  [0, 1],  S:  [0, -1], E:  [1, 0],  Wd: [-1, 0],
-    NE: [1, 1],  NW: [-1, 1], SE: [1, -1], SW: [-1, -1]
+    N:  [0, 1],  S:  [0, -1], E:  [1, 0],  Wd: [-1, 0]
   };
 
   /* ── 좌표 ──────────────────────────────────────────────── */
@@ -235,15 +235,31 @@
 
   var COMMON_JUNG = [0, 1, 4, 5, 8, 13, 18, 20];   // ㅏ ㅐ ㅓ ㅔ ㅗ ㅜ ㅡ ㅣ
 
+  function boxPattern(st, cells) {
+    return {
+      pattern: cells.map(function (c) { return st.wreck[c] || st.tiles[c].onset; }),
+      needExact: cells.map(function (c) { return !!st.wreck[c]; })
+    };
+  }
+  function matcher(st, cells) {
+    var b = boxPattern(st, cells);
+    return function (w) {
+      var ch = Array.from(w);
+      if (ch.length !== cells.length) return false;
+      return ch.every(function (c, k) { return b.needExact[k] ? c === b.pattern[k] : H.onsetOf(c) === b.pattern[k]; });
+    };
+  }
+  /** 이 박스에 쓸 수 있는 단어가 존재하는가 — 난수를 쓰지 않는다 (UI 하이라이트용) */
+  function canName(st, cells) {
+    if (!st.dict.words) return true;              // 허용 사전은 언제나 합성할 수 있다
+    return st.dict.words.some(matcher(st, cells));
+  }
+
   function nameFor(st, cells) {
-    var pattern = cells.map(function (c) { return st.wreck[c] || st.tiles[c].onset; });
-    var needExact = cells.map(function (c) { return !!st.wreck[c]; });
+    var b = boxPattern(st, cells);
+    var pattern = b.pattern, needExact = b.needExact;
     if (st.dict.words) {
-      var cands = st.dict.words.filter(function (w) {
-        var ch = Array.from(w);
-        if (ch.length !== cells.length) return false;
-        return ch.every(function (c, k) { return needExact[k] ? c === pattern[k] : H.onsetOf(c) === pattern[k]; });
-      });
+      var cands = st.dict.words.filter(matcher(st, cells));
       return cands.length ? cands[Math.floor(st.rand() * cands.length)] : null;
     }
     // 허용 사전에서 합성할 때는 흔한 모음만 쓴다.
@@ -452,21 +468,48 @@
     return { ok: true, msg: mm, landed: landed, revealed: seen.size };
   }
 
-  /* ── 탐지 (§9.2) ───────────────────────────────────────── */
+  /* ── 탐지 (§9.2) ─────────────────────────────────────────
+   * v0.8 — 직선 1줄에서 쐐기로. 대각 방향은 삭제하고 4방위만 남겼다.
+   *
+   *   원점(함선 타일)에서 방향 d 로,
+   *     정면  d*1 … d*length        (5칸)
+   *     좌우  d*1±⊥ … d*flank±⊥     (각 4칸)
+   *
+   *          ㅁㅁㅁㅁ
+   *      ▣ → ㅁㅁㅁㅁㅁ      ▣ = 원점 (판명 대상 아님)
+   *          ㅁㅁㅁㅁ
+   *
+   * 보드 밖은 그냥 버려진다 — 가장자리에서 바깥을 향해 쏘면 손해다.
+   */
+  function scanCells(fromIdx, dirKey) {
+    var d = DIRS[dirKey]; if (!d) return null;
+    var px = -d[1], py = d[0];                       // 진행 방향의 수직
+    var p = xy(fromIdx), out = [], seen = {}, s;
+    function add(x, y) {
+      if (!inB(x, y)) return;
+      var k = idx(x, y);
+      if (seen[k]) return;
+      seen[k] = 1; out.push(k);
+    }
+    for (s = 1; s <= B.scan.length; s++) add(p.x + d[0] * s, p.y + d[1] * s);
+    for (s = 1; s <= B.scan.flank; s++) {
+      add(p.x + d[0] * s + px, p.y + d[1] * s + py);
+      add(p.x + d[0] * s - px, p.y + d[1] * s - py);
+    }
+    return out;
+  }
+
   function actionScan(st, player, shipId, fromIdx, dirKey) {
     var err = canAct(st, player, shipId, B.cost.scan); if (err) return fail(err);
     var sh = st.ships[shipId];
     if (sh.tiles.indexOf(fromIdx) < 0) return fail('자기 함선이 점유한 타일을 골라야 함');
-    var d = DIRS[dirKey]; if (!d) return fail('방향 오류');
+    var cells = scanCells(fromIdx, dirKey);
+    if (!cells) return fail('방향 오류 (상하좌우만 가능 — 대각 폐지)');
 
     spend(st, player, sh, B.cost.scan, B.cooldown.scan);
-    var p = xy(fromIdx), n = 0;
-    for (var s = 1; s <= B.scan.length; s++) {
-      var nx = p.x + d[0] * s, ny = p.y + d[1] * s;
-      if (!inB(nx, ny)) break;
-      observe(st, player, idx(nx, ny)); n++;
-    }
-    return { ok: true, revealed: n, msg: logm(st, '탐지: ' + label(player, fromIdx) + ' ' + dirKey + ' ' + n + '칸 판명', player) };
+    cells.forEach(function (c) { observe(st, player, c); });
+    return { ok: true, revealed: cells.length, cells: cells,
+      msg: logm(st, '탐지: ' + label(player, fromIdx) + ' ' + dirKey + ' ' + cells.length + '칸 판명', player) };
   }
 
   /* -- 식별 (GDD 9.3) - 함선을 고르지 않는다. 함대 전체의 사거리가 기준. */
@@ -688,7 +731,7 @@
     endGame: endGame, checkAnnihilation: checkAnnihilation, hasLegalMove: hasLegalMove, findMoves: findMoves,
     observe: observe, effSyllable: effSyllable, knownSyllableAt: knownSyllableAt,
     shipDist: shipDist, fireRange: fireRange, moveCooldown: moveCooldown, specOf: specOf,
-    validateWord: validateWord, nameFor: nameFor,
+    validateWord: validateWord, nameFor: nameFor, canName: canName, scanCells: scanCells,
     projectTile: projectTile, sink: sink, fullyDecoded: fullyDecoded
   };
 

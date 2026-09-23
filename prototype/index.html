@@ -42,19 +42,21 @@
         <span><i class="sw stale">가</i>낡은 정보</span>
       </div>
       <div class="grp"><b>사거리</b>
-        <span><i class="sw rmove"></i>이동 가능</span>
+        <span><i class="sw rmove"></i>이동 테두리</span>
         <span><i class="sw rfire"></i>포격</span>
         <span><i class="sw rident"></i>식별</span>
       </div>
       <div class="grp"><b>조작</b>
+        <span><i class="sw hull"></i>함선 테두리</span>
         <span><i class="sw pick"></i>선택한 함선</span>
-        <span><i class="sw hl"></i>지금 누를 수 있음</span>
+        <span><i class="sw hl"></i>이동 시작 가능</span>
+        <span><i class="sw tgt"></i>포격 목표</span>
         <span><i class="sw prev"></i>드래그 미리보기</span>
       </div>
       <div class="grp"><b>경고·목표</b>
         <span><i class="sw exposed"></i>피탐</span>
         <span><i class="sw ident">✕</i>식별당함</span>
-        <span><i class="sw landing"></i>25행 상륙</span>
+        <span><i class="sw landing"></i>마지막 행 상륙</span>
       </div>
     </div>
   </section>
@@ -95,27 +97,33 @@
     </div>
 
     <div id="battlePanel" class="block hidden">
-      <h2>행동</h2>
-      <div class="row acts">
-        <button data-act="move">이동 <b>3</b><span class="keyhint">1</span></button>
-        <button data-act="scan">탐지 <b>1</b><span class="keyhint">2</span></button>
-        <button data-act="identify">식별 <b>2</b><span class="keyhint">3</span></button>
-        <button data-act="fire">포격 <b>1</b><span class="keyhint">4</span></button>
-      </div>
-      <div id="dirRow" class="row dirs hidden">
-        <button data-dir="NW">↖</button><button data-dir="N">↑</button><button data-dir="NE">↗</button>
-        <button data-dir="Wd">←</button><span class="dirmid">WASD<br>QEZC</span><button data-dir="E">→</button>
-        <button data-dir="SW">↙</button><button data-dir="S">↓</button><button data-dir="SE">↘</button>
+      <div id="modeTag" class="mode"></div>
+
+      <div id="fireRow" class="row hidden">
+        <button id="btnFire" class="primary">포격 <b>1</b></button>
+        <span id="fireAt" class="d"></span>
       </div>
       <div id="wordRow" class="row hidden">
+        <span id="wordTag" class="d"></span>
         <input id="word" type="text" placeholder="단어" size="10">
         <button id="btnSuggest">자동 단어</button>
         <button id="btnExec" class="primary">실행</button>
       </div>
       <div class="row">
         <button id="btnCancel">선택 취소 (Esc)</button>
-        <span class="keyhint">Tab 함선 전환 · Space 일시정지</span>
+        <span class="keyhint">Tab 함선 전환 · Space 일시정지 · Enter 포격</span>
       </div>
+
+      <h2>조작</h2>
+      <table class="howto">
+        <tr><td>아군 함선 <b>클릭</b></td><td>선택 — 초록 테두리(이동)와 붉은 칠(포격 사거리)이 뜬다</td></tr>
+        <tr><td>함선 타일 <b>드래그</b></td><td>탐지 <i>2</i> — 상하좌우 4방향, 정면 5칸 + 좌우 4칸</td></tr>
+        <tr><td>초록 테두리 <b>드래그</b></td><td>이동 <i>3</i> — 놓으면 단어 입력</td></tr>
+        <tr><td>붉은 칸 <b>클릭</b> → 포격</td><td>포격 <i>1</i> — 같은 칸을 한 번 더 눌러도 발사</td></tr>
+        <tr><td>사거리 밖 <b>클릭</b></td><td>선택 취소</td></tr>
+        <tr><td>선택 없이 <b>드래그</b></td><td>식별 <i>2</i> — 파란 칠 안에서 3~4칸</td></tr>
+      </table>
+
       <h2>함대</h2>
       <div id="fleet" class="fleet"></div>
     </div>

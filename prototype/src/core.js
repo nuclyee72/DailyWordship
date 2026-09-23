@@ -54,25 +54,36 @@
    *       함선당 1행동 제한 대신 함선별 쿨타임.
    */
   WS.BALANCE = {
-    board: { w: 10, h: 25, deployRows: 10 },
+    /* 보드 — v0.9 축소.  8×8 자기 진영 + 가운데 중립 4행 + 8×8 상대 진영
+     *   y  0~ 7  P1 배치 구역 (8행)
+     *   y  8~11  중립 해역   (4행)
+     *   y 12~19  P2 배치 구역 (8행)
+     * landingRow 는 h 와 같아야 한다 (자기 기준 마지막 행). */
+    board: { w: 8, h: 20, deployRows: 8 },
     onset: { majorRatio: 0.8 },
 
     ap:    { max: 10, start: 5, regenMs: 2500 },   // 2.5초마다 1, 최대 10
-    cost:  { move: 3, scan: 1, identify: 2, fire: 1 },
+    cost:  { move: 3, scan: 2, identify: 2, fire: 1 },
     cooldown: { movePerLen: 3000, scan: 5000, identify: 8000, fire: 6000 },
 
-    ships: [                                        // 5칸 삭제, 4칸 3척
-      { len: 4, count: 3, hp: 10, fireRange: 5 },
-      { len: 3, count: 5, hp: 6,  fireRange: 3 }
+    ships: [                                        // v0.9 — 5척 16칸 (구 8척 27칸)
+      { len: 4, count: 1, hp: 10, fireRange: 5 },
+      { len: 3, count: 4, hp: 6,  fireRange: 3 }
     ],
-    scan:     { length: 5 },
+    /* 탐지 — 4방향(대각 없음)으로 뻗는 쐐기.
+     *   정면 length 칸 + 좌우 각 flank 칸. 좌우는 원점 쪽에 맞춰 정렬된다.
+     *   ㅁㅁㅁㅁ          flank 4
+     *   ㅁㅁㅁㅁㅁ   ←    length 5  (원점은 이 줄의 바로 왼쪽)
+     *   ㅁㅁㅁㅁ          flank 4
+     */
+    scan:     { length: 5, flank: 4 },
     identify: { range: 7, minLen: 3, maxLen: 4 },   // 5글자 폐지
     damage:   { base: 1, precisionBonus: 1, identifiedMult: 3 },
     reveal:   { enemyHpOnlyWhenIdentified: true,    // 식별당한 함선만 체력·피해 표시
                 radius: 1.5 },                      // 이동 후 정보 획득 반지름 (√2 포함 = 8방향)
     move:     { banSameCells: true,                 // 자기 자리로 이동 금지 (함명 중복은 허용)
                 adjacency: 1.5 },                   // 이동 인접 판정 반지름 (√2 ≈ 1.414 < 1.5 → 대각 포함)
-    win:      { landingRow: 25, landingNeedsFullShip: false },
+    win:      { landingRow: 20, landingNeedsFullShip: false },   // = board.h
     gen:      { maxMinorRun: 2 },
     MAJOR:    ['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅎ'],
     MINOR_W:  { 'ㅊ':0.22, 'ㅌ':0.18, 'ㅍ':0.16, 'ㅋ':0.14, 'ㄲ':0.12, 'ㅆ':0.10, 'ㅉ':0.04, 'ㄸ':0.03, 'ㅃ':0.01 }
