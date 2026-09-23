@@ -28,7 +28,26 @@
   function idx(x, y) { return y * W + x; }
   function xy(i) { return { x: i % W, y: Math.floor(i / W) }; }
   function inB(x, y) { return x >= 0 && x < W && y >= 0 && y < HT; }
-  function cheb(a, b) { var A = xy(a), C = xy(b); return Math.max(Math.abs(A.x - C.x), Math.abs(A.y - C.y)); }
+  /* 거리는 유클리드(직선 거리). 대각선이 √2 ≈ 1.414 로 직선보다 멀다.
+   * 범위 판정은 제곱끼리 비교해 부동소수점 오차를 피한다. */
+  function dist(a, b) {
+    var A = xy(a), C = xy(b), dx = A.x - C.x, dy = A.y - C.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function within(a, b, r) {
+    var A = xy(a), C = xy(b), dx = A.x - C.x, dy = A.y - C.y;
+    return dx * dx + dy * dy <= r * r;
+  }
+  /** 중심 i 로부터 반지름 r 안의 칸들 (자기 자신 제외) */
+  function cellsWithin(i, r) {
+    var p = xy(i), out = [], R = Math.ceil(r), dx, dy;
+    for (dx = -R; dx <= R; dx++) for (dy = -R; dy <= R; dy++) {
+      if (!dx && !dy) continue;
+      if (dx * dx + dy * dy > r * r) continue;
+      if (inB(p.x + dx, p.y + dy)) out.push(idx(p.x + dx, p.y + dy));
+    }
+    return out;
+  }
   function other(p) { return p === 'P1' ? 'P2' : 'P1'; }
 
   function viewRow(player, y) { return player === 'P1' ? y + 1 : HT - y; }
@@ -41,15 +60,10 @@
     return String.fromCharCode(97 + p.x) + viewRow(player, p.y);
   }
 
-  function neighbors1(i) {
-    var p = xy(i), out = [];
-    for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) {
-      if (!dx && !dy) continue;
-      if (inB(p.x + dx, p.y + dy)) out.push(idx(p.x + dx, p.y + dy));
-    }
-    return out;
-  }
+  /** 이동 인접 판정에 쓰이는 이웃 (반지름 = BALANCE.move.adjacency) */
+  function neighbors1(i) { return cellsWithin(i, B.move.adjacency); }
 
+  /* 직선 박스의 칸 수 계산. 거리 측정이 아니라 셀 개수이므로 max 가 맞다. */
   function lineBox(a, b) {
     var A = xy(a), C = xy(b);
     if (A.x !== C.x && A.y !== C.y) return null;
@@ -182,8 +196,13 @@
     return kn ? kn[sh.tiles.indexOf(i)] : null;
   }
 
+  /** 함선과 칸의 거리 = 점유 타일 중 가장 가까운 것까지의 직선 거리 */
   function shipDist(st, sh, i) {
-    return sh.tiles.reduce(function (m, t) { return Math.min(m, cheb(t, i)); }, 99);
+    return sh.tiles.reduce(function (m, t) { return Math.min(m, dist(t, i)); }, Infinity);
+  }
+  /** 사거리 판정 전용 — 제곱 비교라 오차가 없다 */
+  function shipWithin(st, sh, i, r) {
+    return sh.tiles.some(function (t) { return within(t, i, r); });
   }
   function specOf(len) { return B.ships.filter(function (x) { return x.len === len; })[0]; }
   function fireRange(len) { var s = specOf(len); return s ? s.fireRange : 0; }
@@ -365,7 +384,7 @@
 
     var k = st.kn[player], i;
     for (i = 0; i < cells.length; i++) if (!k.onset[cells[i]]) return fail('초성 미판명 칸 포함: ' + label(player, cells[i]));
-    if (!cells.some(function (c) { return shipDist(st, sh, c) <= 1; })) return fail('현재 위치로부터 1칸 이내의 칸을 포함해야 함');
+    if (!cells.some(function (c) { return shipWithin(st, sh, c, B.move.adjacency); })) return fail('현재 위치로부터 1칸 이내의 칸을 포함해야 함');
 
     var werr = validateWord(st, player, cells, word); if (werr) return fail(werr);
 
@@ -389,7 +408,7 @@
     delete st.kn[other(player)].shipName[shipId];   // 함명 교체 → 상대가 해독한 음절 전부 소멸
 
     var seen = new Set();
-    sh.tiles.forEach(function (t) { seen.add(t); neighbors1(t).forEach(function (n) { seen.add(n); }); });
+    sh.tiles.forEach(function (t) { seen.add(t); cellsWithin(t, B.reveal.radius).forEach(function (n) { seen.add(n); }); });
     seen.forEach(function (s) { observe(st, player, s); });
 
     var msg = logm(st, '이동: ' + shipId + ' → 「' + word + '」 ' + label(player, cells[0]) + '-' + label(player, cells[cells.length - 1]) +
@@ -426,7 +445,7 @@
     var k = st.kn[player], i;
     for (i = 0; i < cells.length; i++) {
       if (!k.onset[cells[i]]) return fail('초성 미판명 칸 포함: ' + label(player, cells[i]));
-      if (shipDist(st, sh, cells[i]) > B.identify.range) return fail('사거리 초과 — ' + label(player, cells[i]) + ' (최대 ' + B.identify.range + '칸)');
+      if (!shipWithin(st, sh, cells[i], B.identify.range)) return fail('사거리 초과 — ' + label(player, cells[i]) + ' (최대 ' + B.identify.range + '칸)');
     }
     var werr = validateWord(st, player, cells, word); if (werr) return fail(werr);
 
@@ -482,7 +501,7 @@
     var err = canAct(st, player, shipId, B.cost.fire); if (err) return fail(err);
     var sh = st.ships[shipId];
     var rng = fireRange(sh.len);
-    if (shipDist(st, sh, target) > rng) return fail('사거리 초과 (길이 ' + sh.len + ' → ' + rng + '칸)');
+    if (!shipWithin(st, sh, target, rng)) return fail('사거리 초과 (길이 ' + sh.len + ' → ' + rng + '칸)');
     var occ = st.tiles[target].occupant;
     if (occ && st.ships[occ].owner === player) return fail('아군 함선은 조준 불가');
 
@@ -550,7 +569,7 @@
           for (var q = 0; q < sh.len; q++) cells.push(idx(sx + d[0] * q, sy + d[1] * q));
           if (cells.every(function (c) { return sh.tiles.indexOf(c) >= 0; })) continue;   // 자기 자리
           if (!cells.every(function (c) { return k.onset[c]; })) continue;
-          if (!cells.some(function (c) { return shipDist(st, sh, c) <= 1; })) continue;
+          if (!cells.some(function (c) { return shipWithin(st, sh, c, B.move.adjacency); })) continue;
           if (cells.some(function (c) { var o = st.tiles[c].occupant; return o && o !== sh.id; })) continue;
           var nm = nameFor(st, cells);
           if (!nm) continue;
@@ -602,7 +621,8 @@
   WS.game = {
     C: { UNKNOWN: C_UNKNOWN, CONTACT: C_CONTACT, CLEAR: C_CLEAR, GHOST: C_GHOST },
     DIRS: DIRS, W: W, H: HT, N: N,
-    idx: idx, xy: xy, inB: inB, cheb: cheb, other: other,
+    idx: idx, xy: xy, inB: inB, other: other,
+    dist: dist, within: within, cellsWithin: cellsWithin, shipWithin: shipWithin,
     viewRow: viewRow, landingY: landingY, deployRange: deployRange, label: label,
     lineBox: lineBox, isLine: isLine, neighbors1: neighbors1,
     createGame: createGame, placeShip: placeShip, autoPlace: autoPlace,

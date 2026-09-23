@@ -100,11 +100,11 @@
       G.hl = set;
     } else if (s.act === 'fire') {
       var r = X.fireRange(sh.len);
-      for (i = 0; i < X.N; i++) if (X.shipDist(st, sh, i) <= r) set.add(i);
+      for (i = 0; i < X.N; i++) if (X.shipWithin(st, sh, i, r)) set.add(i);
       G.rng = set;
     } else if (s.act === 'identify') {
       var kn = st.kn[G.control];
-      for (i = 0; i < X.N; i++) if (X.shipDist(st, sh, i) <= B.identify.range && kn.onset[i]) set.add(i);
+      for (i = 0; i < X.N; i++) if (X.shipWithin(st, sh, i, B.identify.range) && kn.onset[i]) set.add(i);
       G.rng = set;
       if (s.a != null) {
         var ends = new Set(), p0 = X.xy(s.a);

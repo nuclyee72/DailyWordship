@@ -59,6 +59,39 @@
     return '8척 / 27칸 / 식별 3~4칸';
   });
 
+  /* ══ 거리 (v0.6 — 유클리드) ════════════════════════════ */
+
+  test('거리 — 유클리드(직선). 대각선이 직선보다 멀다', function () {
+    var o = X.idx(0, 0);
+    eq(X.dist(o, X.idx(3, 0)), 3, '가로 3칸');
+    eq(X.dist(o, X.idx(0, 3)), 3, '세로 3칸');
+    eq(X.dist(o, X.idx(3, 4)).toFixed(3), '5.000', '3:4:5 직각삼각형');
+    var diag = X.dist(o, X.idx(3, 3));
+    assert(Math.abs(diag - 4.2426) < 0.001, '대각 3칸 = 3√2 이어야 하는데 ' + diag);
+    assert(diag > 3, '대각선이 직선과 같은 값 — 체비쇼프가 남아 있음');
+    return '(3,3) → ' + diag.toFixed(3) + ' (체비쇼프였다면 3)';
+  });
+
+  test('거리 — 포격 범위가 원형이다 (대각 구석이 잘린다)', function () {
+    var st = bg(); revealAll(st, 'P1');
+    var me = forceShip(st, 'P1', 3, line(1, 1, 3, true), '가기고');   // 사거리 3
+    assert(X.fire(st, 'P1', me.id, X.idx(1, 4)).ok, '정면 3칸이 막힘');   // 거리 3
+    ready(st);
+    // (6,4) 는 (3,1) 로부터 대각 3칸 = 4.24 → 체비쇼프였다면 통과했을 자리
+    eq(X.cheb === undefined, true, 'cheb 가 아직 노출돼 있음');
+    fails(X.fire(st, 'P1', me.id, X.idx(6, 4)), '사거리');
+    return '대각 구석 (6,4) 차단';
+  });
+
+  test('거리 — 이동 인접은 대각선도 인정 (반지름 1.5)', function () {
+    eq(B.move.adjacency, 1.5, '인접 반지름');
+    var st = bg(); revealAll(st, 'P1');
+    var sh = forceShip(st, 'P1', 3, line(3, 3, 3, true), '가기고');
+    // 대각으로만 닿는 박스: (6,4),(7,4),(8,4) — (6,4)가 (5,3)의 대각
+    assert(X.move(st, 'P1', sh.id, line(6, 4, 3, true), '구게괴').ok, '대각 인접 이동이 막힘');
+    return '√2 < 1.5 → 8방향 인접 유지';
+  });
+
   /* ══ 보드 생성 ═════════════════════════════════════════ */
 
   test('보드 — 250칸 전부 유효한 초성을 갖는다', function () {
@@ -710,12 +743,12 @@
     if (ap >= B.cost.move + B.cost.identify) {
       var sh = ready[Math.floor(st.rand() * ready.length)];
       var targets = [];
-      for (i = 0; i < X.N; i++) if (kn.contact[i] === C.CONTACT && X.shipDist(st, sh, i) <= X.fireRange(sh.len)) targets.push(i);
+      for (i = 0; i < X.N; i++) if (kn.contact[i] === C.CONTACT && X.shipWithin(st, sh, i, X.fireRange(sh.len))) targets.push(i);
       if (targets.length) {
         if (st.rand() < 0.35) {
           var c0 = targets[Math.floor(st.rand() * targets.length)];
           var box = X.lineBox(c0, c0 + 2);
-          if (box && box.length === 3 && box.every(function (c) { return kn.onset[c] && X.shipDist(st, sh, c) <= B.identify.range; })) {
+          if (box && box.length === 3 && box.every(function (c) { return kn.onset[c] && X.shipWithin(st, sh, c, B.identify.range); })) {
             var w = X.nameFor(st, box);
             if (w && X.identify(st, p, sh.id, box, w).ok) return;
           }

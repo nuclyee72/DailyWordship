@@ -68,8 +68,10 @@
     scan:     { length: 5 },
     identify: { range: 7, minLen: 3, maxLen: 4 },   // 5글자 폐지
     damage:   { base: 1, precisionBonus: 1, identifiedMult: 3 },
-    reveal:   { enemyHpOnlyWhenIdentified: true },  // 식별당한 함선만 체력·피해 표시
-    move:     { banSameCells: true },               // 자기 자리로 이동 금지 (함명 중복은 허용)
+    reveal:   { enemyHpOnlyWhenIdentified: true,    // 식별당한 함선만 체력·피해 표시
+                radius: 1.5 },                      // 이동 후 정보 획득 반지름 (√2 포함 = 8방향)
+    move:     { banSameCells: true,                 // 자기 자리로 이동 금지 (함명 중복은 허용)
+                adjacency: 1.5 },                   // 이동 인접 판정 반지름 (√2 ≈ 1.414 < 1.5 → 대각 포함)
     win:      { landingRow: 25, landingNeedsFullShip: false },
     gen:      { maxMinorRun: 2 },
     MAJOR:    ['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅎ'],
