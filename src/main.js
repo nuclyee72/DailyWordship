@@ -169,9 +169,9 @@ document.querySelector('.ws-row-labels').append(...Array.from({ length: SIZE }, 
   const s = document.createElement('span'); s.textContent = String(r + 1); return s;
 }));
 
-/** 공유 제목 — '워드십 · 2026-09-24', '워드십 · 사자성어 · 2026-09-24', '워드십 · 사자성어 · 자유 연습' */
+/** 공유 제목 — '데일리 워드십 · 2026-09-24', '데일리 워드십 · 사자성어 · 2026-09-24', '데일리 워드십 · 사자성어 · 자유 연습' */
 function titleFor(mode, dateOrLabel) {
-  return ['워드십', mode.id === 'standard' ? null : mode.label, dateOrLabel].filter(Boolean).join(' · ');
+  return ['데일리 워드십', mode.id === 'standard' ? null : mode.label, dateOrLabel].filter(Boolean).join(' · ');
 }
 function sessionTitle() {
   return titleFor(session.mode, session.kind === 'free' ? '자유 연습' : session.date);

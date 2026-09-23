@@ -1,6 +1,6 @@
 {
-  "name": "워드십",
-  "short_name": "워드십",
+  "name": "데일리 워드십",
+  "short_name": "데일리 워드십",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
