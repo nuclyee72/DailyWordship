@@ -7,7 +7,7 @@ import { boxCells, boxLabel, SIZE } from './game/board.js';
 import { MAX_GUESSES, computeState, validateGuess, shipMap, cellOutcomes } from './game/game.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
 
-const SITE_URL = 'https://nuclyee72.github.io/WordShip/';
+const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
 const DAILY_FIRST_DATE = '2026-09-23'; // 아카이브에서 고를 수 있는 가장 이른 날짜
 const TODAY = () => dateStrKST();
 

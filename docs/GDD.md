@@ -117,7 +117,7 @@ v1.2는 박스 밖 칸까지 열리고 바로 초록이 되어 "힌트"가 아�
 🟩🟩🟩🟩　🟩🟩
 🟩🟩🟩　　🟨🟧
 🟩🟩🟩　　🟩🟩🟩
-https://nuclyee72.github.io/WordShip/
+https://nuclyee72.github.io/DailyWordship/
 ```
 
 ## 7. 개발
