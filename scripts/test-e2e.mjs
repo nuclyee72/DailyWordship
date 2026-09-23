@@ -85,7 +85,9 @@ try {
     const sel = await page.locator('.ws-tile.is-selected').count();
     assert('대각선 드래그 선택', sel === 2);
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-2-selected.png`) });
+    await page.fill('#ws-word-input', '아무');
     await page.keyboard.press('Escape');
+    assert('선택 취소 → 입력칸 비움', (await page.inputValue('#ws-word-input')) === '');
 
     // 새로고침 → 진행 복원
     await page.reload();

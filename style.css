@@ -638,13 +638,17 @@ html, body {
 .ws-cap { fill: none; vector-effect: non-scaling-stroke; }
 .ws-cap-done { stroke: var(--text-input); stroke-width: 2.5; }
 .ws-cap-answer { stroke: var(--conflict); stroke-width: 2; stroke-dasharray: 5 4; }
-.ws-cap-select { stroke: var(--select); stroke-width: 3; }
-.ws-cap-select.is-preview { stroke-dasharray: 6 4; }
-.ws-cap-flash { stroke: var(--select); stroke-width: 3; animation: ws-flash 1.6s ease forwards; }
+/* 선택 박스 — 칸들을 끈으로 두른 모양 (BoardRenderer #band) */
+.ws-band { fill: none; stroke: var(--select); stroke-width: 3; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ws-band-select.is-preview { stroke-dasharray: 6 4; }
+.ws-band-flash { animation: ws-flash 1.6s ease forwards; }
 @keyframes ws-flash {
   0%, 60% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* 오른쪽 열(입력 + 기록) — 좁은 화면에선 없는 셈 치고 세로로 이어 붙인다 */
+.ws-side { display: contents; }
 
 /* 입력 — 초성 슬롯 + 입력창 */
 .ws-guess-form {
@@ -719,8 +723,6 @@ html, body {
 
 .ws-message { margin: 0; min-height: 16px; font-size: 13px; font-weight: 600; text-align: center; color: rgba(var(--text-given-rgb), 0.6); }
 .ws-message[data-kind="error"] { color: var(--conflict); }
-.ws-message[data-kind="good"] { color: var(--text-input); }
-.ws-message[data-kind="hit"] { color: var(--hit-line); }
 
 /* 추측 기록 — 최신이 위 */
 .ws-history {
@@ -772,18 +774,30 @@ html, body {
   .ws-topbar-icon-btn { width: 28px; height: 28px; font-size: 13px; }
   .ws-fleet-ship i { width: 16px; height: 16px; line-height: 16px; font-size: 10px; }
 }
-/* 세로가 짧은 화면(가로 폰 등) — 보드 옆으로 입력·기록을 둔다 */
-@media (max-height: 560px) and (min-width: 640px) {
+/* 넓은 화면 — 보드는 왼쪽, 입력·추측 기록은 오른쪽 열 */
+@media (min-width: 760px) {
   .ws-game {
-    --board: min(calc(100dvh - 130px), 440px);
+    --side: 300px;
+    --board: min(calc(100dvh - 150px), 520px, calc(100vw - var(--side) - 120px));
     display: grid;
-    grid-template-columns: auto minmax(240px, 340px);
-    grid-template-rows: auto auto auto 1fr;
+    grid-template-columns: auto var(--side);
+    grid-template-rows: auto auto auto;
     justify-content: center;
-    column-gap: 20px;
+    align-content: start;
+    column-gap: 24px;
+    row-gap: 10px;
   }
-  .ws-topbar, .ws-subbar { grid-column: 1 / -1; justify-self: center; }
-  .ws-board-wrap { grid-column: 1; grid-row: 3 / 5; }
-  .ws-guess-form { grid-column: 2; grid-row: 3; width: 100%; }
-  .ws-history { grid-column: 2; grid-row: 4; width: 100%; }
+  .ws-topbar, .ws-subbar { grid-column: 1 / -1; justify-self: center; width: 100%; max-width: calc(var(--board) + 60px + var(--side)); }
+  .ws-board-wrap { grid-column: 1; grid-row: 3; align-self: start; }
+  .ws-side {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    max-height: calc(var(--board) + 38px);
+  }
+  .ws-guess-form, .ws-history { width: 100%; }
 }

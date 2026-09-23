@@ -106,18 +106,20 @@
         <div id="ws-board" class="ws-board" role="grid" aria-label="8×8 해역"></div>
       </div>
 
+      <div class="ws-side">
       <form id="ws-guess-form" class="ws-guess-form" autocomplete="off">
         <div id="ws-slots" class="ws-slots" aria-hidden="true"></div>
         <div class="ws-input-row">
           <input id="ws-word-input" class="ws-word-input" type="text" inputmode="text" lang="ko"
                  enterkeyhint="send" autocapitalize="off" spellcheck="false"
-                 placeholder="판에서 2~4칸을 드래그하세요" disabled/>
+                 disabled/>
           <button id="btn-submit-guess" class="ws-submit-btn" type="submit" disabled>추측</button>
         </div>
         <p id="ws-message" class="ws-message" aria-live="polite"></p>
       </form>
 
       <ol id="ws-history" class="ws-history" reversed></ol>
+      </div>
     </div>
   </div>
 

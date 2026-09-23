@@ -210,7 +210,7 @@ function renderGame() {
     wordInput.value = '';
     wordInput.placeholder = state.status === 'won' ? '모든 함선을 찾았어요!' : '추측을 모두 썼어요';
   } else if (!selection) {
-    wordInput.placeholder = '판에서 2~4칸을 드래그하세요';
+    wordInput.placeholder = '';
   }
 
   btnViewAnswer.hidden = state.status !== 'lost';
@@ -266,6 +266,8 @@ function renderHistory() {
 function handleSelect(box) {
   selection = box;
   if (!state || state.status !== 'playing') return;
+  // 선택이 풀리거나 다른 칸으로 바뀌면 쓰던 입력은 버린다
+  wordInput.value = '';
   setMessage('');
   wordInput.disabled = !box;
   btnSubmit.disabled = !box;
@@ -273,7 +275,7 @@ function handleSelect(box) {
     wordInput.placeholder = `${boxCells(box).map((i) => session.puzzle.onsets[i]).join(' ')} — ${box.len}글자 명사`;
     wordInput.focus({ preventScroll: true });
   } else {
-    wordInput.placeholder = '판에서 2~4칸을 드래그하세요';
+    wordInput.placeholder = '';
   }
   renderSlots();
 }
@@ -344,15 +346,7 @@ guessForm.addEventListener('submit', async (e) => {
 function afterGuess() {
   renderGame();
   persist();
-  const last = state.results[state.results.length - 1];
-  if (last) {
-    if (last.completedShips.length) {
-      const names = last.completedShips.map((s) => `「${session.puzzle.ships[s].name}」`).join(' ');
-      setMessage(`${names} 함선을 밝혀냈어요!`, 'good');
-    } else if (last.newCells.length) setMessage(`글자 ${last.newCells.length}개 공개`, 'good');
-    else if (last.newHits.length) setMessage('함선이 있어요 — 글자는 달라요', 'hit');
-    else setMessage('아무것도 찾지 못했어요');
-  }
+  setMessage('');
   if (state.status !== 'playing' && !resultShown) {
     resultShown = true;
     wordInput.blur();

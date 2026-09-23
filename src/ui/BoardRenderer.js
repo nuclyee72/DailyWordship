@@ -18,6 +18,23 @@ const STEP_ANGLES = [
   { dr: 0, dc: -1 }, { dr: -1, dc: -1 }, { dr: -1, dc: 0 }, { dr: -1, dc: 1 },
 ];
 
+/** 볼록 껍질 (monotone chain) — 일직선 위의 점은 뺀다 */
+function convexHull(points) {
+  const pts = [...new Map(points.map((p) => [`${p[0]},${p[1]}`, p])).values()]
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list) => {
+    const out = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(pts), ...half([...pts].reverse())];
+}
+
 export class BoardRenderer {
   /**
    * @param {HTMLElement} root  .ws-board
@@ -105,7 +122,7 @@ export class BoardRenderer {
 
   /** 기록 목록에서 누른 추측 박스를 잠깐 깜빡여 보여 준다 */
   flash(box) {
-    const cap = this.#capsule(box, 'ws-cap-flash');
+    const cap = this.#band(box, 'ws-band-flash');
     this.flashLayer.replaceChildren(cap);
     clearTimeout(this.flashTimer);
     this.flashTimer = setTimeout(() => cap.remove(), 1600);
@@ -122,7 +139,24 @@ export class BoardRenderer {
       this.cells[idx].tile.classList.add('is-selected');
       this.cells[idx].order.textContent = String(i + 1);
     });
-    this.selLayer.appendChild(this.#capsule(box, preview ? 'ws-cap-select is-preview' : 'ws-cap-select'));
+    this.selLayer.appendChild(this.#band(box, preview ? 'ws-band-select is-preview' : 'ws-band-select'));
+  }
+
+  /**
+   * 박스의 칸(정사각형)들을 끈으로 두른 모양 — 칸 네 모서리 전부의 볼록 껍질.
+   * 가로·세로는 직사각형, 대각선은 계단 모서리를 잇는 육각형이 된다.
+   */
+  #band(box, cls) {
+    const pts = [];
+    for (const idx of boxCells(box)) {
+      const x = colOf(idx);
+      const y = rowOf(idx);
+      pts.push([x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]);
+    }
+    const poly = document.createElementNS(SVG_NS, 'polygon');
+    poly.setAttribute('points', convexHull(pts).map(([x, y]) => `${x},${y}`).join(' '));
+    poly.setAttribute('class', `ws-band ${cls}`);
+    return poly;
   }
 
   /** 박스를 감싸는 캡슐(둥근 사각형, 박스 방향으로 회전) */
