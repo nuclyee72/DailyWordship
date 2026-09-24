@@ -506,8 +506,10 @@ async function startFreePlay(modeId) {
   }
 }
 btnFreePlay.addEventListener('click', () => openPanel(freeplayModeModal));
-btnFreeplayModeCancel.addEventListener('click', () => closePanel(freeplayModeModal));
-freeplayModeModal.addEventListener('click', (e) => { if (e.target === freeplayModeModal) closePanel(freeplayModeModal); });
+// 모드 고르기를 취소하면 랜딩으로 — 허브에서 들어왔으면 메인 화면 = 허브
+const cancelFreePlayModeModal = () => { if (!leaveToHub()) closePanel(freeplayModeModal); };
+btnFreeplayModeCancel.addEventListener('click', cancelFreePlayModeModal);
+freeplayModeModal.addEventListener('click', (e) => { if (e.target === freeplayModeModal) cancelFreePlayModeModal(); });
 freeplayModeModal.querySelectorAll('.daily-card').forEach((btn) => {
   btn.addEventListener('click', () => { closePanel(freeplayModeModal); startFreePlay(btn.dataset.mode); });
 });
