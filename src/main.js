@@ -7,6 +7,7 @@ import { boxCells, boxLabel, SIZE } from './game/board.js';
 import { computeState, validateGuess, shipMap, cellOutcomes } from './game/game.js';
 import { MODES, modeOf } from './game/modes.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
+import { initHub, leaveToHub } from './hub.js';
 
 const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
 const DAILY_FIRST_DATE = '2026-09-23'; // 아카이브에서 고를 수 있는 가장 이른 날짜
@@ -510,7 +511,7 @@ freeplayModeModal.querySelectorAll('.daily-card').forEach((btn) => {
   btn.addEventListener('click', () => { closePanel(freeplayModeModal); startFreePlay(btn.dataset.mode); });
 });
 
-btnGoLanding.addEventListener('click', showLanding);
+btnGoLanding.addEventListener('click', () => leaveToHub() || showLanding()); // 허브에서 들어왔으면 메인 화면 = 허브
 
 // ── 달력 (통계 · 지난 퍼즐 공용) ──
 function makeCalendar({ gridEl, titleEl, prevEl, nextEl, pick = false, onPick = null }) {
@@ -620,7 +621,11 @@ archiveTypeBtns.forEach((b) => b.addEventListener('click', () => {
   archiveMode = b.dataset.mode;
   paintArchiveCal(false); // 달은 유지하고 그 모드의 결과 색만 다시 칠함
 }));
-archiveBack.addEventListener('click', () => { landingArchive.hidden = true; landingMain.hidden = false; });
+archiveBack.addEventListener('click', () => {
+  if (leaveToHub()) return; // 허브에서 들어왔으면 메인 화면 = 허브
+  landingArchive.hidden = true;
+  landingMain.hidden = false;
+});
 
 btnArchivePlay.addEventListener('click', async () => {
   if (!archiveSelected) return;
@@ -726,3 +731,4 @@ try {
   }
 } catch { /* 무시 */ }
 loadGuessDict().catch((err) => console.error(err));
+initHub('wordship');
