@@ -227,7 +227,9 @@ html, body {
 }
 .landing-mini-btn:hover { background: var(--surface-1); color: var(--text-given); }
 
-/* 지난 퍼즐 아카이브 (메인 카드 안의 서브뷰) */
+/* 지난 퍼즐 아카이브 (메인 카드 안의 서브뷰) — 세 게임 공통 모양 */
+.landing-card--archive { width: min(392px, calc(100vw - 20px)); padding-left: 22px; padding-right: 22px; }
+
 .archive-back {
   align-self: flex-start;
   border: none;
@@ -240,10 +242,12 @@ html, body {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(20, 24, 40, 0.08);
+  transition: transform 0.08s ease, background 0.15s ease;
 }
 .archive-back:hover { background: var(--surface-1-hover); }
-.archive-note { margin: 0; font-size: 12px; color: rgba(var(--text-given-rgb), 0.55); }
-.archive-error { margin: 0; min-height: 14px; font-size: 12px; color: var(--conflict); }
+.archive-back:active { transform: scale(0.96); }
+.archive-note { margin: 0; font-size: 12px; color: rgba(var(--text-given-rgb), 0.55); text-align: center; }
+.archive-error { margin: 0; min-height: 14px; font-size: 12px; color: var(--conflict); text-align: center; }
 /* 모드 전환 — 지난 퍼즐(아카이브)·통계 모달 공용 (DailyTrilateral과 같은 모양) */
 .archive-type-toggle, .daily-stats-tabs { display: flex; gap: 6px; }
 .daily-stats-tabs { margin-bottom: 18px; }
@@ -265,6 +269,7 @@ html, body {
 #landing-archive .landing-btn { height: 46px; font-size: 15px; margin-top: 4px; }
 #landing-archive .landing-btn:disabled { opacity: 0.4; cursor: default; }
 #landing-archive .daily-stats-cal { margin-bottom: 0; }
+#landing-archive .daily-cal-nav { margin-bottom: 4px; }
 #landing-archive .archive-error:empty { min-height: 0; }
 
 .landing-footer {
@@ -413,7 +418,7 @@ html, body {
   line-height: 1;
   cursor: pointer;
 }
-.daily-cal-arrow:hover { background: var(--surface-1-hover); color: var(--text-given); }
+.daily-cal-arrow:hover { background: var(--surface-2, rgba(var(--text-given-rgb), 0.1)); color: var(--text-given); }
 .daily-cal-arrow:disabled { opacity: 0.3; cursor: default; }
 .daily-stats-cal { margin-bottom: 18px; }
 
@@ -448,6 +453,14 @@ html, body {
   color: rgba(var(--text-given-rgb), 0.4);
 }
 .cal-cell--filled .cal-day { color: rgba(255, 255, 255, 0.75); }
+
+.cal-val {
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
 
 .cal-share-row { display: flex; align-items: center; gap: 10px; margin: -8px 0 18px; }
 .cal-share-btn {
