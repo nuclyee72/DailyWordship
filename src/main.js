@@ -748,4 +748,8 @@ function playArchiveFromHub(date, mode) {
   btnArchivePlay.disabled = false;
   btnArchivePlay.click();
 }
-initHub('wordship', { playArchive: playArchiveFromHub });
+// ── 허브의 자유 연습 모드 고르기에서 바로 시작 (?free=standard|idiom) ──
+function playFreeFromHub(mode) {
+  if (Object.hasOwn(MODES, mode)) startFreePlay(mode);
+}
+initHub('wordship', { playArchive: playArchiveFromHub, playFree: playFreeFromHub });
