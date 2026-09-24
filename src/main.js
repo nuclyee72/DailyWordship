@@ -52,7 +52,6 @@ const btnSubmit   = $('btn-submit-guess');
 const messageEl   = $('ws-message');
 const historyEl   = $('ws-history');
 
-const archiveBack     = $('archive-back');
 const archiveCalEl    = $('archive-cal');
 const archiveCalTitle = $('archive-cal-title');
 const archiveCalPrev  = $('archive-cal-prev');
@@ -631,12 +630,6 @@ archiveTypeBtns.forEach((b) => b.addEventListener('click', () => {
   archiveErrorEl.textContent = '';
   paintArchiveCal(false); // 달·고른 날짜는 유지하고 그 모드의 결과 색만 다시 칠함
 }));
-archiveBack.addEventListener('click', () => {
-  if (leaveToHub()) return; // 허브에서 들어왔으면 메인 화면 = 허브
-  landingArchive.hidden = true;
-  landingMain.hidden = false;
-  landingCard.classList.remove('landing-card--archive');
-});
 
 btnArchivePlay.addEventListener('click', async () => {
   if (!archiveSelected) return;
@@ -742,4 +735,15 @@ try {
   }
 } catch { /* 무시 */ }
 loadGuessDict().catch((err) => console.error(err));
-initHub('wordship');
+
+// ── 허브의 지난 퍼즐 달력에서 고른 날짜로 바로 시작 (?archive=YYYY-MM-DD&mode=standard|idiom) ──
+function playArchiveFromHub(date, mode) {
+  btnArchive.click();
+  if (!Object.hasOwn(MODES, mode) || date < DAILY_FIRST_DATE || date >= TODAY()) return;
+  archiveMode = mode;
+  archiveSelected = date;
+  paintArchiveCal(true); // 모드 토글 active도 여기서 맞춘다
+  btnArchivePlay.disabled = false;
+  btnArchivePlay.click();
+}
+initHub('wordship', { playArchive: playArchiveFromHub });

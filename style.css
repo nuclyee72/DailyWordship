@@ -228,24 +228,9 @@ html, body {
 .landing-mini-btn:hover { background: var(--surface-1); color: var(--text-given); }
 
 /* 지난 퍼즐 아카이브 (메인 카드 안의 서브뷰) — 세 게임 공통 모양 */
-.landing-card--archive { width: min(392px, calc(100vw - 20px)); padding-left: 22px; padding-right: 22px; }
+/* 카드 폭은 메인과 같게 고정 — 안쪽 여백만 줄여 달력 칸을 넓힌다 */
+.landing-card--archive { padding-left: 22px; padding-right: 22px; }
 
-.archive-back {
-  align-self: flex-start;
-  border: none;
-  padding: 8px 16px 8px 12px;
-  border-radius: 12px;
-  background: var(--surface-1);
-  color: var(--text-given);
-  font-family: 'Outfit', 'Inter', sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(20, 24, 40, 0.08);
-  transition: transform 0.08s ease, background 0.15s ease;
-}
-.archive-back:hover { background: var(--surface-1-hover); }
-.archive-back:active { transform: scale(0.96); }
 .archive-note { margin: 0; font-size: 12px; color: rgba(var(--text-given-rgb), 0.55); text-align: center; }
 .archive-error { margin: 0; min-height: 14px; font-size: 12px; color: var(--conflict); text-align: center; }
 /* 모드 전환 — 지난 퍼즐(아카이브)·통계 모달 공용 (DailyTrilateral과 같은 모양) */
