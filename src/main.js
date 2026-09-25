@@ -45,7 +45,9 @@ const btnNewFree      = $('btn-new-free');
 const boardEl     = $('ws-board');
 const fleetEl     = $('ws-fleet');
 const modeLabelEl = $('ws-mode-label');
-const gimmicksEl  = $('ws-gimmicks');
+const gameEl      = document.querySelector('.ws-game');
+const elementSidebar = $('element-sidebar');
+const relaxedNoteEl  = $('ws-relaxed-note');
 const guessesLeftEl = $('ws-guesses-left');
 const guessesMaxEl  = $('ws-guesses-max');
 const guessForm   = $('ws-guess-form');
@@ -202,6 +204,7 @@ function openGame(newSession) {
   selection = null;
   renderer.setSize(session.geo.size);
   renderCoordLabels(session.geo.size);
+  renderElementSidebar();
   renderer.setSelection(null, { silent: true });
   wordInput.value = '';
   setMessage('');
@@ -241,7 +244,7 @@ function renderGame() {
   modeLabelEl.textContent = `${session.mode.label} · ${where}`;
 
   renderFleet();
-  renderGimmicks();
+  renderGimmickStatus();
   renderHistory();
   renderSlots();
 
@@ -279,52 +282,61 @@ function renderFleet() {
   }));
 }
 
-/** 익스텐디드 — 그날의 기믹 칩. 누르면 설명이 입력칸 아래에 뜬다 */
-function renderGimmicks() {
+// ── 기믹 안내 사이드바 (책갈피) — 데일리 스도쿠 익스텐디드의 요소 책갈피와 같은 방식 ──
+// 기믹마다 독립된 책갈피 하나씩: 화면 왼쪽 끝의 손잡이(아이콘)를 누르면 이름·설명이 밀려 나온다.
+// 판을 열 때 한 번 만들고(열어 둔 책갈피가 추측마다 닫히지 않게), 추측마다 오른쪽 위 배지(지금 상태)만 고친다.
+function renderElementSidebar() {
+  elementSidebar.innerHTML = '';
   const ids = session.puzzle.gimmicks;
-  gimmicksEl.hidden = !ids.length;
+  gameEl.classList.toggle('has-sidebar', ids.length > 0);
+  if (!ids.length) {
+    elementSidebar.hidden = true;
+    return;
+  }
+  for (const id of ids) {
+    const info = GIMMICKS[id];
+    const bm = document.createElement('div');
+    bm.className = 'element-bookmark';
+    bm.dataset.gimmick = id;
+    bm.innerHTML =
+      `<div class="element-bookmark-body">` +
+      `<span class="element-bookmark-head"><b>${info.icon}</b> ${info.label}<em></em></span>` +
+      `<span class="element-bookmark-desc">${info.help}</span>` +
+      `</div>` +
+      `<button class="element-bookmark-handle" type="button" aria-label="${info.label} 설명 열기/닫기">` +
+      `<span class="element-bookmark-icon">${info.icon}</span></button>`;
+    bm.querySelector('.element-bookmark-handle')
+      .addEventListener('click', () => bm.classList.toggle('open'));
+    elementSidebar.appendChild(bm);
+  }
+  elementSidebar.hidden = false;
+}
+
+/** 책갈피 배지 — 기믹의 지금 상태 (이번엔 4글자 ✕, 10번째 격침 필수 …) */
+function renderGimmickStatus() {
   const playing = state.status === 'playing';
   const hiddenLeft = rules.hidden.filter(Boolean).length;
   const next = session.guesses.length + 1; // 이번 추측이 몇 번째인지
   const lastResult = state.results[state.results.length - 1];
-  gimmicksEl.replaceChildren(...ids.map((id) => {
-    const g = GIMMICKS[id];
-    let detail = g.short;
+  elementSidebar.querySelectorAll('.element-bookmark').forEach((bm) => {
+    const id = bm.dataset.gimmick;
+    let detail = GIMMICKS[id].short;
     if (playing && id === 'alternate' && rules.banLen) detail = `이번엔 ${rules.banLen}글자 ✕`;
     if (playing && id === 'turn' && rules.banDir) detail = `이번엔 ${DIR_ARROW[rules.banDir]} ✕`;
     if (playing && (id === 'fog' || id === 'cross')) detail = `잠긴 칸 ${hiddenLeft}`;
     if (playing && id === 'noOrange' && lastResult?.usedOrange) detail = '이번엔 주황 ✕';
     if (playing && id === 'gray3') {
       const k = GRAY_EVERY - ((next - 1) % GRAY_EVERY) - 1; // 회색 필수까지 남은 추측
-      detail = rules.mustGray ? '이번 추측 회색 필수' : k ? `${k}번 뒤 회색 필수` : '이번 추측 회색 필수 (아직 회색 없음)';
+      detail = k ? `${k}번 뒤 회색` : rules.mustGray ? '이번엔 회색 필수' : '이번엔 면제';
     }
     if (playing && id === 'checkpoint') {
       const cp = CHECKPOINTS.find((c) => c >= next);
-      detail = !cp ? '관문 끝' : cp === next ? '이번 추측 격침 필수' : `${cp}번째 격침 필수 (${cp - next}번 뒤)`;
+      detail = !cp ? '관문 끝' : cp === next ? '이번엔 격침 필수' : `${cp - next}번 뒤 관문`;
     }
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'ws-gimmick';
-    chip.dataset.gimmick = id;
-    chip.title = g.help;
-    const icon = document.createElement('span');
-    icon.className = 'ws-gimmick-icon';
-    icon.textContent = g.icon;
-    const name = document.createElement('b');
-    name.textContent = g.label;
-    const small = document.createElement('small');
-    small.textContent = detail;
-    chip.append(icon, name, small);
-    chip.addEventListener('click', () => setMessage(`${g.icon} ${g.help}`));
-    return chip;
-  }));
+    bm.querySelector('em').textContent = detail;
+  });
   // 기믹끼리 겹쳐 둘 곳이 없으면 이번 한 번은 제약이 풀린다 (game.js guessRules)
-  if (playing && rules.relaxed) {
-    const note = document.createElement('span');
-    note.className = 'ws-gimmick-relaxed';
-    note.textContent = '둘 곳이 없어 이번 추측은 제약 해제';
-    gimmicksEl.appendChild(note);
-  }
+  relaxedNoteEl.hidden = !(playing && rules.relaxed);
 }
 
 function renderHistory() {
@@ -811,6 +823,23 @@ btnDailyStatsShare.addEventListener('click', async () => {
 });
 
 // ── 도움말 ──
+// 익스텐디드 기믹 목록은 책갈피와 같은 문구(GIMMICKS)로 채운다 — 분류별 한 줄에 '아이콘 이름 설명'
+document.getElementById('help-gimmicks').replaceChildren(...[...new Set(Object.values(GIMMICKS).map((g) => g.group))].map((group) => {
+  const line = document.createElement('span');
+  line.className = 'help-gimmick';
+  const title = document.createElement('b');
+  title.className = 'help-gimmick-group';
+  title.textContent = group;
+  line.append(title, ...Object.values(GIMMICKS).filter((g) => g.group === group).map((g) => {
+    const item = document.createElement('span');
+    item.className = 'help-gimmick-item';
+    const name = document.createElement('b');
+    name.textContent = `${g.icon} ${g.label}`;
+    item.append(name, ` ${g.help}`);
+    return item;
+  }));
+  return line;
+}));
 function openHelpModal() { openPanel(gameHelpModal); }
 gameHelpClose.addEventListener('click', () => closePanel(gameHelpModal));
 gameHelpModal.addEventListener('click', (e) => { if (e.target === gameHelpModal) closePanel(gameHelpModal); });

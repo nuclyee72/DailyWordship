@@ -376,6 +376,8 @@ html, body {
 .help-legend { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .help-gimmick { display: block; margin: 4px 0 0; font-size: 13px; }
 .help-gimmick b { font-weight: 700; color: var(--text-given); }
+.help-gimmick-group { display: block; margin-top: 6px; font-size: 12px; color: var(--text-input) !important; }
+.help-gimmick-item { display: block; margin: 2px 0 0; }
 .lg { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 5px; }
 .lg-miss   { background: var(--miss-bg); }
 .lg-hit    { background: var(--hit-bg); box-shadow: inset 0 0 0 2px var(--hit-line); }
@@ -589,27 +591,8 @@ html, body {
 .ws-fleet-ship.is-done i { background: var(--cell-selected); box-shadow: inset 0 0 0 1.5px var(--text-input); }
 .ws-fleet-ship.is-answer i { color: rgba(var(--text-given-rgb), 0.6); box-shadow: inset 0 0 0 1.5px rgba(var(--text-given-rgb), 0.35); }
 .ws-mode-label { font-size: 12px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.5); white-space: nowrap; }
-.ws-gimmicks { flex: 1 0 100%; order: 3; display: flex; flex-wrap: wrap; gap: 6px; }
-.ws-gimmicks[hidden] { display: none; }
-.ws-gimmick {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 4px 10px;
-  border: none;
-  border-radius: 999px;
-  background: var(--surface-1);
-  color: var(--text-given);
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1.3;
-  cursor: pointer;
-}
-.ws-gimmick:hover { background: var(--surface-1-hover); }
-.ws-gimmick b { font-weight: 700; }
-.ws-gimmick small { font-size: 11px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.55); }
-.ws-gimmick-icon { font-size: 12px; }
-.ws-gimmick-relaxed { align-self: center; font-size: 11px; font-weight: 700; color: var(--hit-text); }
+.ws-relaxed-note { flex: 1 0 100%; order: 3; margin: 0; font-size: 11px; font-weight: 700; color: var(--hit-text); }
+.ws-relaxed-note[hidden] { display: none; }
 
 /* 보드 — 좌표 라벨(a~h, 1~8)을 두른 카드. 한 변 칸 수 = --ws-size (8, '넓은 바다'면 10) */
 .ws-board-wrap {
@@ -752,6 +735,124 @@ html, body {
 @keyframes ws-flash {
   0%, 60% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/* ── 기믹 안내 사이드바 (책갈피) — DailySudoku/style.css의 요소 책갈피 그대로 ── */
+.element-sidebar {
+  position: fixed;
+  top: 88px;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  /* 접힌 책갈피의 본문은 화면 밖으로 transform 되지만 레이아웃 폭(≈290px)은 그대로라,
+     이 컨테이너가 화면 좌측 상단을 덮는 투명 상자로 남아 게임판 클릭을 가로챈다.
+     컨테이너/래퍼는 클릭을 통과시키고, 실제로 보이는 손잡이·본문만 이벤트를 받게 한다. */
+  pointer-events: none;
+}
+.element-sidebar[hidden] { display: none; }
+
+.element-bookmark {
+  --bw: 250px;
+  display: flex;
+  align-items: stretch;
+  transform: translateX(calc(-1 * var(--bw)));
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.element-bookmark.open { transform: translateX(0); }
+
+.element-bookmark-handle,
+.element-bookmark-body { pointer-events: auto; }
+
+.element-bookmark-body {
+  order: 1;
+  width: var(--bw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 15px;
+  border-radius: 0 4px 4px 0;
+  background: rgba(var(--glass-rgb), 0.95);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(var(--glass-rgb), 0.6);
+  border-left: none;
+  box-shadow: 12px 0 40px rgba(20, 24, 40, 0.18);
+}
+
+.element-bookmark-handle {
+  order: 2;
+  flex: 0 0 auto;
+  /* 모든 책갈피 손잡이를 동일한 고정 크기로 — 이모지/글자 폭 차이로 크기가 달라지지 않게 */
+  width: 40px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(var(--glass-rgb), 0.6);
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  background: var(--text-input);
+  cursor: pointer;
+  box-shadow: 6px 0 18px rgba(20, 24, 40, 0.16);
+}
+
+.element-bookmark-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.element-bookmark-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-given);
+}
+
+.element-bookmark-head b { font-size: 16px; }
+
+.element-bookmark-head em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: rgba(var(--text-given-rgb), 0.55);
+  white-space: nowrap;
+}
+
+.element-bookmark-desc {
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(var(--text-given-rgb), 0.7);
+}
+
+/* 좁은 화면 — 책갈피 손잡이(40px)가 판 왼쪽 칸을 가리지 않게 그만큼 비우고 판을 줄인다
+   (스도쿠의 sidebarPad와 같은 역할). 넓은 화면은 판이 가운데라 원래 여유가 있다 */
+@media (max-width: 759px) {
+  .element-sidebar { top: 112px; gap: 8px; }
+  .element-bookmark { --bw: min(74vw, 250px); }
+  .ws-game.has-sidebar {
+    --board: min(calc(100vw - 96px), 440px, max(248px, calc(100dvh - 330px)));
+    padding-left: 56px;
+  }
 }
 
 /* 오른쪽 열(입력 + 기록) — 좁은 화면에선 없는 셈 치고 세로로 이어 붙인다 */
@@ -925,4 +1026,11 @@ html, body {
     max-height: calc(var(--board) + 38px);
   }
   .ws-guess-form, .ws-history { width: 100%; }
+}
+/* 넓은 화면에서도 가운데 정렬한 판 왼쪽 여백이 손잡이(40px)보다 좁아지는 폭(760~1000px)이 있어 같이 비운다 */
+@media (min-width: 760px) {
+  .ws-game.has-sidebar {
+    --board: min(calc(100dvh - 150px), 520px, calc(100vw - var(--side) - 176px));
+    padding-left: 56px;
+  }
 }

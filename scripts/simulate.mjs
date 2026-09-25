@@ -143,23 +143,24 @@ if (MODE.gimmicks) {
     ? [GIMMICK_ARG.split('+')]
     : GIMMICK_PAIRS;
   console.log(`[${MODE.label}] 조합마다 ${GAMES}판 · 한도 ${MAX_GUESSES} (추측 수는 벌점 포함)`);
-  console.log('조합                  중앙  75%  최대  | 30회  40회  50회');
+  const caps = [30, MAX_GUESSES, MAX_GUESSES + 10];
+  console.log(`조합                  중앙  75%  최대  | ${caps.map((c) => `${c}회`.padStart(5)).join(' ')}`);
   const rows = [];
   for (const pair of pairs) {
     const r = run(pair);
-    rows.push({ pair, median: r.q(0.5), in40: r.within(40) });
+    rows.push({ pair, median: r.q(0.5), inCap: r.within(MAX_GUESSES) });
     const cell = (v) => String(v ?? '-').padStart(4);
-    console.log(`${pair.join('+').padEnd(20)} ${cell(r.q(0.5))} ${cell(r.q(0.75))} ${cell(r.solved[r.solved.length - 1])}  | ${`${r.within(30)}%`.padStart(4)} ${`${r.within(40)}%`.padStart(5)} ${`${r.within(50)}%`.padStart(5)}`);
+    console.log(`${pair.join('+').padEnd(20)} ${cell(r.q(0.5))} ${cell(r.q(0.75))} ${cell(r.solved[r.solved.length - 1])}  | ${caps.map((c) => `${r.within(c)}%`.padStart(5)).join(' ')}`);
   }
   if (rows.length > 1) {
     // 기믹별 요약 — 그 기믹이 들어간 조합들의 평균
-    console.log('\n기믹별 (들어간 조합 평균)  중앙  40회 안  | 가장 어려운 짝');
+    console.log('\n기믹별 (들어간 조합 평균)  중앙  한도 안  | 가장 어려운 짝');
     const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
     for (const id of GIMMICK_IDS) {
       const mine = rows.filter((x) => x.pair.includes(id));
       if (!mine.length) continue;
-      const worst = mine.reduce((a, b) => (b.in40 < a.in40 ? b : a));
-      console.log(`${id.padEnd(22)} ${avg(mine.map((x) => x.median ?? HARD_CAP)).toFixed(1).padStart(5)}  ${`${avg(mine.map((x) => x.in40)).toFixed(0)}%`.padStart(6)}   | ${worst.pair.join('+')} ${worst.in40}%`);
+      const worst = mine.reduce((a, b) => (b.inCap < a.inCap ? b : a));
+      console.log(`${id.padEnd(22)} ${avg(mine.map((x) => x.median ?? HARD_CAP)).toFixed(1).padStart(5)}  ${`${avg(mine.map((x) => x.inCap)).toFixed(0)}%`.padStart(6)}   | ${worst.pair.join('+')} ${worst.inCap}%`);
     }
   }
 } else {

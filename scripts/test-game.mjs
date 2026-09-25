@@ -232,10 +232,10 @@ test('사자성어 퍼즐 30개 — 4칸 5척, 함명 전부 사자성어, 같�
 // 손으로 만든 판(P)에 기믹만 바꿔 끼운다
 const withG = (gimmicks, extra = {}) => ({ ...P, size: 8, gimmicks, locked: [], holes: [], ...extra });
 
-test('그날의 기믹 — 결정적 · 서로 다른 2개 · 149일에 149조합 전부 · 이틀 연속 같은 조합 없음 · 못 겹치는 짝 없음', () => {
-  eq(GIMMICK_IDS.length, 18);
+test('그날의 기믹 — 결정적 · 서로 다른 2개 · 167일에 167조합 전부 · 이틀 연속 같은 조합 없음 · 못 겹치는 짝 없음', () => {
+  eq(GIMMICK_IDS.length, 19);
   const n = GIMMICK_PAIRS.length;
-  eq(n, 153 - 4);
+  eq(n, 171 - 4);
   eq(dailyGimmicks('2026-09-25'), dailyGimmicks('2026-09-25'));
   const days = Array.from({ length: n * 3 }, (_, i) => {
     const d = new Date(Date.UTC(2026, 8, 23 + i)).toISOString().slice(0, 10);
@@ -352,6 +352,15 @@ test('관문 — 10·20·30번째 추측에 함선을 완성하지 못하면 −
   eq(computeState(p, junk(30), { maxGuesses: 99 }).used, 45, '세 관문 모두 실패');
 });
 
+test('보급 부족 — 시작부터 3번 쓴 상태 (추측 없어도)', () => {
+  const p = withG(['lowStart']);
+  eq(computeState(p, []).used, 3);
+  eq(computeState(p, [g(2, 0, 'h', '아아')]).used, 4);
+  const lost = computeState(p, [g(2, 0, 'h', '아아'), g(3, 0, 'h', '아아')], { maxGuesses: 5 });
+  eq([lost.status, lost.results.length], ['lost', 2], '한도 5면 2번 만에 실패');
+  eq(computeState(P, []).used, 0, '기믹 없으면 0');
+});
+
 test('판 크기 기믹 — 7×7 · 10×10 · 12×12 도넛(가운데 4×4 구멍)', () => {
   eq([boardSizeFor([]), boardSizeFor(['narrow']), boardSizeFor(['fog', 'wide']), boardSizeFor(['donut'])], [8, 7, 10, 12]);
   const holes = holesFor(['donut']);
@@ -413,7 +422,7 @@ test('데일리 파일 → 퍼즐 (예전 파일은 8×8 · 기믹 없음)', () 
   eq([ext.size, ext.gimmicks, ext.locked, ext.onsets.length], [10, ['wide', 'fog'], [3], 100]);
 });
 
-test('익스텐디드 퍼즐 — 149조합 × 1판: 판 크기 · 구멍 · 잠긴 칸 · 함대 · 미끼 · 함명 추측 통과', () => {
+test('익스텐디드 퍼즐 — 167조합 × 1판: 판 크기 · 구멍 · 잠긴 칸 · 함대 · 미끼 · 함명 추측 통과', () => {
   const m = MODES.extended;
   const base = boardOf(8);
   for (const gimmicks of GIMMICK_PAIRS) {
@@ -456,9 +465,10 @@ test('기믹 없는 모드의 생성 결과는 예전과 같음 (잠금 추첨�
   eq([p.size, p.gimmicks, p.locked, p.holes], [8, [], [], []]);
 });
 
-test('통계 분포 구간 — 스탠다드 5번씩 · 익스텐디드 첫 구간 1~15', () => {
+test('통계 분포 구간 — 스탠다드 5번씩 · 익스텐디드 첫 구간 1~10 · 한도 35', () => {
+  eq(MODES.extended.maxGuesses, 35);
   eq(distBuckets('standard'), ['1~5번', '6~10번', '11~15번', '16~20번', '21~25번', '26~30번', '실패']);
-  eq(distBuckets('extended'), ['1~15번', '16~20번', '21~25번', '26~30번', '31~35번', '36~40번', '실패']);
+  eq(distBuckets('extended'), ['1~10번', '11~15번', '16~20번', '21~25번', '26~30번', '31~35번', '실패']);
   eq(bucketIndexFor('solved', 7, 'standard'), 1);
   eq(bucketIndexFor('solved', 7, 'extended'), 0);
   eq(bucketIndexFor('solved', 36, 'extended'), 5);

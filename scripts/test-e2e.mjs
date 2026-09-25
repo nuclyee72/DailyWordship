@@ -156,9 +156,9 @@ try {
     await page.waitForFunction((label) => document.getElementById('daily-card-desc-extended').textContent.includes(label), GIMMICKS[ext.gimmicks[0]].label, { timeout: 5000 });
     assert('익스텐디드 카드에 오늘의 기믹 이름', true);
     await page.click('#btn-daily-play-extended');
-    await page.waitForSelector('.ws-gimmick');
+    await page.waitForSelector('.element-bookmark');
     assert(`익스텐디드 — 칸 ${extGeo.cellCount}개`, await page.locator('.ws-cell').count() === extGeo.cellCount);
-    assert('익스텐디드 — 기믹 칩 2개', await page.locator('.ws-gimmick').count() === 2);
+    assert('익스텐디드 — 기믹 책갈피 2개', await page.locator('.element-bookmark').count() === 2);
     assert(`익스텐디드 — 남은 추측 ${MODES.extended.maxGuesses}`, (await page.textContent('#ws-guesses-left')) === String(MODES.extended.maxGuesses));
     assert(`잠긴 칸 ${ext.locked.length}개`, await page.locator('.ws-tile.is-hidden').count() === ext.locked.length);
     assert(`구멍 ${extPuzzle.holes.length}개`, await page.locator('.ws-tile.is-hole').count() === extPuzzle.holes.length);
@@ -191,8 +191,19 @@ try {
       assert(`막힌 자리 → 바로 안내 ("${m}")`, m === want && await page.locator('#ws-word-input').isDisabled());
       await page.keyboard.press('Escape');
     }
-    await page.click('.ws-gimmick >> nth=0');
-    assert('기믹 칩 → 설명', (await page.textContent('#ws-message')).includes(GIMMICKS[ext.gimmicks[0]].help.slice(0, 10)));
+    const bm0 = page.locator('.element-bookmark').first();
+    const leftBefore = (await bm0.boundingBox()).x;
+    await bm0.locator('.element-bookmark-handle').click();
+    await page.waitForTimeout(400);
+    assert('책갈피 손잡이 → 설명이 밀려 나옴', await bm0.evaluate((e) => e.classList.contains('open')) && (await bm0.boundingBox()).x > leftBefore
+      && (await bm0.locator('.element-bookmark-desc').textContent()) === GIMMICKS[ext.gimmicks[0]].help);
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-7b-bookmark.png`) });
+    await bm0.locator('.element-bookmark-handle').click();
+    await page.waitForTimeout(400); // 닫히는 애니메이션(0.28초)
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-7c-closed.png`) });
+    const handle = await page.locator('.element-bookmark-handle').first().boundingBox();
+    const board = await page.locator('.ws-board-wrap').boundingBox();
+    assert('책갈피 손잡이가 판을 가리지 않음', handle.x + handle.width <= board.x);
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-7-extended.png`) });
     await page.evaluate(() => window.__solve());
     await page.waitForSelector('#daily-result-modal.show', { timeout: 3000 });
@@ -204,7 +215,7 @@ try {
     await page.click('#btn-landing-stats');
     await page.click('#daily-stats-modal .daily-stats-tab[data-mode="extended"]');
     assert('통계 익스텐디드 탭 — 1게임', (await page.textContent('#stat-played')) === '1');
-    assert('통계 익스텐디드 — 분포 첫 구간 1~15번', (await page.locator('.ws-dist-label').first().textContent()) === '1~15번');
+    assert('통계 익스텐디드 — 분포 첫 구간 1~10번', (await page.locator('.ws-dist-label').first().textContent()) === '1~10번');
     await page.click('#daily-stats-close');
 
     // 익스텐디드 자유 연습 — 넓은 바다(10×10) + 잠긴 칸
@@ -228,11 +239,19 @@ try {
     await dragBox(page, { r: 3, c: 3, dir: 'd', len: 3 }, boardOf(12));
     assert('도넛 바다 — 구멍을 지나는 박스는 바로 안내', (await page.textContent('#ws-message')).includes('구멍'));
     await page.keyboard.press('Escape');
-    assert('관문 칩 — 10번째 격침 필수', (await page.textContent('.ws-gimmick[data-gimmick="checkpoint"] small')).startsWith('10번째'));
+    assert('관문 책갈피 배지 — 9번 뒤 관문', (await page.textContent('.element-bookmark[data-gimmick="checkpoint"] em')) === '9번 뒤 관문');
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-9-donut.png`) });
     await page.evaluate(() => window.__freePlay('extended', ['narrow', 'extra4']));
     await page.waitForFunction(() => document.querySelectorAll('.ws-cell').length === 49);
     assert('좁은 바다 — 7×7 · 함선 7척', await page.locator('.ws-fleet-ship').count() === 7);
+    await page.evaluate(() => window.__freePlay('extended', ['lowStart', 'fog']));
+    await page.waitForFunction(() => document.querySelectorAll('.ws-cell').length === 64);
+    assert(`보급 부족 — 시작부터 남은 추측 ${MODES.extended.maxGuesses - 3}`, (await page.textContent('#ws-guesses-left')) === String(MODES.extended.maxGuesses - 3));
+    await page.click('#btn-go-landing');
+    await page.click('#btn-daily-play');
+    await page.waitForFunction(() => document.querySelectorAll('.ws-cell').length === 64);
+    assert('스탠다드 — 책갈피 없음 · 여백 원래대로', await page.locator('#element-sidebar').isHidden()
+      && !(await page.locator('.ws-game').evaluate((e) => e.classList.contains('has-sidebar'))));
 
     // 다크 모드 (스탠다드로 돌아오면 다시 8×8)
     await page.click('#btn-go-landing');

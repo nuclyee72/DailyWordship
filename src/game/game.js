@@ -10,7 +10,10 @@
  */
 import { onsetOf } from '../core/hangul.js';
 import { MIN_BOX, MAX_BOX, DEFAULT_SIZE, DIR_ARROW, geoOf, sameBox } from './board.js';
-import { hasGimmick, CHECKPOINTS, CHECKPOINT_PENALTY, GRAY_EVERY } from './gimmicks.js';
+import { GIMMICKS, hasGimmick, CHECKPOINTS, CHECKPOINT_PENALTY, GRAY_EVERY, START_PENALTY } from './gimmicks.js';
+
+/** 기믹 때문에 거절할 때의 문구 — 모두 '기믹 이름 — 이유' */
+const why = (id, text) => `${GIMMICKS[id].label} — ${text}`;
 
 /** 함대 — 4칸 1척, 3칸 3척, 2칸 2척 (GDD §3) */
 export const FLEET = [4, 3, 3, 3, 2, 2];
@@ -78,14 +81,14 @@ function strictRules(puzzle, guesses) {
   const blocked = new Array(geo.cellCount).fill(null);
   const block = (idx, reason) => { blocked[idx] ??= reason; };
   if (has('noMiss')) {
-    st.miss.forEach((m, idx) => { if (m) block(idx, '회색 칸 금지 — 빈 바다로 확인된 칸은 쓸 수 없어요'); });
+    st.miss.forEach((m, idx) => { if (m) block(idx, why('noMiss', '회색 칸 사용 불가')); });
   }
   if (last) {
     const lastCells = geo.boxCells(last);
     if (has('apart')) {
       for (const idx of lastCells) {
-        block(idx, '거리 두기 — 직전 추측과 붙은 칸은 쓸 수 없어요');
-        for (const n of geo.neighbors(idx)) block(n, '거리 두기 — 직전 추측과 붙은 칸은 쓸 수 없어요');
+        block(idx, why('apart', '직전 추측 주변 칸 사용 불가'));
+        for (const n of geo.neighbors(idx)) block(n, why('apart', '직전 추측 주변 칸 사용 불가'));
       }
     }
     // 직전 추측의 첫/끝 칸을 지나는 가로줄·세로줄 전체
@@ -93,11 +96,11 @@ function strictRules(puzzle, guesses) {
       const r = geo.rowOf(idx), c = geo.colOf(idx);
       for (let k = 0; k < geo.size; k++) { block(geo.idxOf(r, k), reason); block(geo.idxOf(k, c), reason); }
     };
-    if (has('lineStart')) blockLines(lastCells[0], '첫 칸 십자 — 직전 첫 칸의 가로줄·세로줄은 쓸 수 없어요');
-    if (has('lineEnd')) blockLines(lastCells[lastCells.length - 1], '끝 칸 십자 — 직전 끝 칸의 가로줄·세로줄은 쓸 수 없어요');
+    if (has('lineStart')) blockLines(lastCells[0], why('lineStart', '직전 첫 칸의 가로·세로줄 사용 불가'));
+    if (has('lineEnd')) blockLines(lastCells[lastCells.length - 1], why('lineEnd', '직전 끝 칸의 가로·세로줄 사용 불가'));
     // 직전 추측이 주황 칸을 지나갔으면, 지금 주황인 칸은 이번에 못 쓴다
     if (has('noOrange') && st.results[st.results.length - 1]?.usedOrange) {
-      st.hit.forEach((h, idx) => { if (h && !st.revealed[idx]) block(idx, '연속 주황 금지 — 직전에 주황 칸을 썼으니 이번엔 주황 칸을 피해 주세요'); });
+      st.hit.forEach((h, idx) => { if (h && !st.revealed[idx]) block(idx, why('noOrange', '이번 추측은 주황 칸 사용 불가')); });
     }
   }
   const banLen = last && has('alternate') ? last.len : null;
@@ -110,12 +113,12 @@ function strictRules(puzzle, guesses) {
 export function boxProblem(puzzle, guesses, box, rules = guessRules(puzzle, guesses)) {
   const cells = box && box.len >= MIN_BOX && box.len <= MAX_BOX ? geoOf(puzzle).boxCells(box) : null;
   if (!cells) return '2~4칸 직선을 골라 주세요';
-  if (cells.some((idx) => rules.holes[idx])) return '도넛 바다 — 가운데 구멍은 지나갈 수 없어요';
-  if (rules.banLen === box.len) return `길이 바꾸기 — 직전이 ${box.len}글자라 이번엔 다른 길이로`;
-  if (rules.banDir === box.dir) return `방향 바꾸기 — 직전이 ${DIR_ARROW[box.dir]} 방향이라 이번엔 다른 방향으로`;
+  if (cells.some((idx) => rules.holes[idx])) return why('donut', '구멍 통과 불가');
+  if (rules.banLen === box.len) return why('alternate', `직전과 같은 ${box.len}글자 사용 불가`);
+  if (rules.banDir === box.dir) return why('turn', `직전과 같은 ${DIR_ARROW[box.dir]} 방향 사용 불가`);
   const blockedAt = cells.find((idx) => rules.blocked[idx]);
   if (blockedAt !== undefined) return rules.blocked[blockedAt];
-  if (rules.mustGray && !cells.some((idx) => rules.miss[idx])) return `회색 칸 필수 — ${GRAY_EVERY}번째 추측마다 회색(빈 바다) 칸을 하나 이상 포함해야 해요`;
+  if (rules.mustGray && !cells.some((idx) => rules.miss[idx])) return why('gray3', '이번 추측은 회색 칸 필수');
   return null;
 }
 
@@ -164,7 +167,7 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
  * 힌트 — 박스가 이미 명중으로 확인된 주황 칸(글자 미공개)을 지나면, 그중 박스에서 가장 앞(번호가 낮은)
  *   칸 하나의 글자를 틀렸어도 노랑으로 공개한다. 박스 밖 칸은 절대 열리지 않는다.
  * 완성(초록) — 함선 자리에 함선 이름을 정확히 입력했을 때만. 글자가 전부 노랑이어도 이름을 입력해야 초록.
- * 추측 소모 — 보통 1번. 기믹에 따라 벌점·보상이 붙는다 (guessCost).
+ * 추측 소모 — 보통 1번. 기믹에 따라 벌점·보상이 붙는다 (guessCost). '보급 부족'이면 시작부터 3번 쓴 상태.
  * @returns {{
  *   revealed: (string|null)[],   칸별 공개된 음절 (노랑, 함선 완성 시 초록)
  *   hit: boolean[],              함선 칸으로 확인됨 (음절 공개 칸 포함)
@@ -184,7 +187,7 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
   const miss = new Array(geo.cellCount).fill(false);
   const completed = puzzle.ships.map(() => false);
   const results = [];
-  let used = 0;
+  let used = hasGimmick(puzzle, 'lowStart') ? START_PENALTY : 0;
   let status = 'playing';
 
   for (const g of guesses) {

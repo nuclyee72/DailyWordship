@@ -22,15 +22,15 @@ export const MODES = {
   extended: {
     id: 'extended',
     label: '익스텐디드',
-    desc: '매일 바뀌는 기믹 2개 · 추측 40번',
+    desc: '매일 바뀌는 기믹 2개 · 추측 35번',
     fleet: FLEET,
-    maxGuesses: 40,
+    maxGuesses: 35,
     answersFile: null,          // 스탠다드와 같은 출제 풀
     seedPrefix: 'daily-extended',
     fileName: (date) => `extended-${date}`,
     minDecoys: DEFAULT_MIN_DECOYS,
     gimmicks: true,             // 그날의 기믹 2개 — src/game/gimmicks.js dailyGimmicks
-    distBounds: [15, 20, 25, 30, 35, 40], // 15번 안에 푸는 일은 드물어 첫 구간을 넓게
+    distBounds: [10, 15, 20, 25, 30, 35], // 10번 안에 푸는 일은 드물어 첫 구간을 넓게
   },
   idiom: {
     id: 'idiom',
