@@ -2,7 +2,7 @@
  * generator.js — 퍼즐 생성 (GDD §5). 데일리·자유 연습 공용, 시드가 같으면 결과도 같다.
  *
  *  1. 함대 배치(FLEET) — 4방향(가로·세로·대각 두 개) 무작위, 겹침만 금지(접촉 허용)
- *  2. 함명 — 출제 풀에서 길이별로 뽑는다(모두 다르게)
+ *  2. 함명 — 출제 풀에서 길이별로 뽑는다(모두 다르게). '단순한 단어'면 초급·중급 어휘(pool.simple)에서만
  *  3. 빈 칸 초성 — 출제 풀 음절의 초성 빈도로 가중 추출
  *  4. 품질 검사 — 길이별 미끼 박스(상용어 초성열과 맞는데 함선이 아닌 박스)가 충분해야 한다.
  *     4글자는 자연 발생이 드물어 모자라면 빈 칸에 미끼를 직접 심는다.
@@ -97,6 +97,13 @@ function lockedCells(gimmicks, geo, holes) {
   return [...locked].sort((a, b) => a - b);
 }
 
+/** '단순한 단어' — 길이별 함명 후보. 목록이 비었으면(데이터 없음) 알려 준다 */
+function simpleNames(pool) {
+  const names = Object.fromEntries([2, 3, 4].map((len) => [len, pool.words[len].filter((w) => pool.simple?.has(w))]));
+  if ([2, 3, 4].some((len) => !names[len].length)) throw new Error('단순한 단어 목록(answers-simple.txt)이 비어 있어요');
+  return names;
+}
+
 /** 8×8 기준 미끼 최소 개수를 이 판의 (구멍을 안 지나는) 박스 수에 비례하게 */
 function scaleDecoys(minDecoys, geo, holes) {
   const isHole = new Set(holes);
@@ -107,14 +114,14 @@ function scaleDecoys(minDecoys, geo, holes) {
   }));
 }
 
-function attempt(pool, weights, minDecoys, fleet, geo, holes) {
+function attempt(pool, names, weights, minDecoys, fleet, geo, holes) {
   const ships = placeFleet(fleet, geo, holes);
   if (!ships) return null;
 
   const used = new Set();
   for (const ship of ships) {
     let name;
-    for (let tries = 0; tries < 50 && (!name || used.has(name)); tries++) name = pick(pool.words[ship.len]);
+    for (let tries = 0; tries < 50 && (!name || used.has(name)); tries++) name = pick(names[ship.len]);
     if (used.has(name)) return null;
     used.add(name);
     ship.name = name;
@@ -161,8 +168,10 @@ export function generatePuzzle(seed, pool, { minDecoys = DEFAULT_MIN_DECOYS, fle
     const holes = holesFor(gimmicks);
     const decoys = geo.size === 8 && !holes.length ? minDecoys : scaleDecoys(minDecoys, geo, holes);
     const weights = onsetWeights(pool);
+    // 함명 후보 — '단순한 단어'면 초급·중급 어휘만 (미끼 계산·빈 칸 초성은 전체 출제 풀 그대로)
+    const names = gimmicks.includes('simple') ? simpleNames(pool) : pool.words;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      const puzzle = attempt(pool, weights, decoys, fullFleet, geo, holes);
+      const puzzle = attempt(pool, names, weights, decoys, fullFleet, geo, holes);
       if (puzzle) {
         // 기믹 없는 판은 잠금 추첨을 하지 않는다 — 같은 시드의 스탠다드·사자성어 판이 예전과 똑같이 나오게
         const locked = gimmicks.length ? lockedCells(gimmicks, geo, holes) : [];

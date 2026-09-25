@@ -1,5 +1,5 @@
 /**
- * gimmicks.js — 익스텐디드 모드의 기믹(변형 규칙) 19종과 그날의 2종 고르기 (GDD §10).
+ * gimmicks.js — 익스텐디드 모드의 기믹(변형 규칙) 22종과 그날의 2종 고르기 (GDD §10).
  *
  * 퍼즐에는 puzzle.gimmicks = ['wide', 'fog'] 처럼 id 목록으로 들어간다. 규칙 판정은 game.js,
  * 판 크기·구멍·함대·잠긴 칸 배치는 generator.js가 이 목록을 보고 한다.
@@ -7,7 +7,7 @@
 import { seedRng, shuffle, nextFloat } from '../core/random.js';
 
 // 문구 템플릿 — 모든 기믹이 같은 틀을 쓴다
-//   help  : 명사형으로 끝나는 한 줄. 판 "판 N×N" · 함대 "… 추가" · 정보 "… 초성 가림(…)" · 비용 "… 못 맞히면 −N" · 제한 "… 사용 불가 / 필수"
+//   help  : 명사형으로 끝나는 한 줄. 판 "판 N×N" · 함대 "… 추가" · 정보 "… 초성 가림(…)" · 비용 "… 못 맞히면 −N" · 제한 "… 사용 불가 / 필수" · 목표 "… 필수 (모자라면 실패)"
 //   short : 책갈피 배지. 짧은 명사구 (금지는 "… ✕")
 //   group : 도움말에서 묶는 분류
 export const GIMMICKS = {
@@ -25,6 +25,8 @@ export const GIMMICKS = {
     help: '3칸 함선 1척 추가' },
   extra2: { id: 'extra2', group: '함대', icon: '🚤', label: '2칸 증원', short: '+1척', extra: 2,
     help: '2칸 함선 1척 추가' },
+  simple: { id: 'simple', group: '함대', icon: '🔤', label: '단순한 단어', short: '쉬운 함명',
+    help: '함선 이름 초급·중급 어휘만 (국립국어원 학습용 어휘 A·B등급)' },
   // ── 정보 ──
   fog: { id: 'fog', group: '정보', icon: '🔒', label: '잠긴 칸', short: '초성 가림',
     help: '일부 칸 초성 가림 (아무 글자 가능 · 추측 시 공개)' },
@@ -50,10 +52,15 @@ export const GIMMICKS = {
     help: '직전 추측 끝 칸의 가로·세로줄 사용 불가' },
   noOrange: { id: 'noOrange', group: '제한', icon: '🟧', label: '연속 주황 금지', short: '연속 주황 ✕',
     help: '직전에 주황 칸을 썼으면 주황 칸 사용 불가' },
+  noYellow: { id: 'noYellow', group: '제한', icon: '🟨', label: '연속 노랑 금지', short: '연속 노랑 ✕',
+    help: '직전에 노랑 칸을 썼으면 노랑 칸 사용 불가' },
   noMiss: { id: 'noMiss', group: '제한', icon: '🚫', label: '회색 칸 금지', short: '회색 칸 ✕',
     help: '빈 바다로 확인된 회색 칸 사용 불가' },
   gray3: { id: 'gray3', group: '제한', icon: '🔁', label: '회색 칸 필수', short: '3번째마다 회색',
     help: '3번째 추측마다 회색 칸 1개 이상 필수 (회색 칸 없으면 면제)' },
+  // ── 목표 (못 지키면 실패) ──
+  reserve: { id: 'reserve', group: '목표', icon: '🗺️', label: '미답 해역', short: '안 쓴 칸 1/8',
+    help: '끝날 때 한 번도 추측하지 않은 칸 1/8 이상 필수 (모자라면 그 즉시 실패)' },
 };
 export const GIMMICK_IDS = Object.keys(GIMMICKS);
 export const GIMMICKS_PER_DAY = 2;
@@ -70,6 +77,10 @@ export const CHECKPOINT_PENALTY = 5;
 export const START_PENALTY = 3;
 /** '회색 칸 필수' — 이 번째마다 */
 export const GRAY_EVERY = 3;
+/** '미답 해역' — 끝날 때 한 번도 추측하지 않은 칸이 판 칸 수(구멍 제외)의 이 비율 이상 남아야 성공 */
+export const RESERVE_RATIO = 1 / 8;
+/** '미답 해역'에 필요한 안 쓴 칸 수 — 8×8은 8칸, 7×7은 7칸, 10×10은 13칸, 도넛(128칸)은 16칸 */
+export const reserveNeed = (puzzle) => Math.ceil((puzzle.size * puzzle.size - (puzzle.holes?.length ?? 0)) * RESERVE_RATIO);
 
 export const hasGimmick = (puzzle, id) => !!puzzle?.gimmicks?.includes(id);
 /** 기믹 목록 → 판 크기 (기본 8) */
@@ -89,7 +100,7 @@ export const fleetFor = (fleet, gimmicks) =>
 /** 공유·화면 표시용 '🌊 넓은 바다 · 🔒 잠긴 칸' */
 export const gimmickLine = (gimmicks) => (gimmicks ?? []).map((id) => `${GIMMICKS[id].icon} ${GIMMICKS[id].label}`).join(' · ');
 
-// 가능한 2종 조합 (함께 못 나오는 짝 제외) — 19종이면 171 − 4 = 167개
+// 가능한 2종 조합 (함께 못 나오는 짝 제외) — 22종이면 231 − 4 = 227개
 export const GIMMICK_PAIRS = GIMMICK_IDS.flatMap((a, i) => GIMMICK_IDS.slice(i + 1).map((b) => [a, b]))
   .filter(([a, b]) => !EXCLUSIVE.some(([x, y]) => (a === x && b === y) || (a === y && b === x)));
 const EPOCH = Date.UTC(2026, 8, 23); // 워드십 데일리 첫날 — 여기서부터 조합 수만큼의 날마다 한 바퀴
@@ -100,7 +111,7 @@ function cycleOrder(cycle) {
 }
 
 /**
- * 그날의 기믹 2종. 조합 수(167)일에 한 바퀴씩 모든 조합을 한 번씩 돌린다(바퀴마다 순서는 섞음) —
+ * 그날의 기믹 2종. 조합 수(227)일에 한 바퀴씩 모든 조합을 한 번씩 돌린다(바퀴마다 순서는 섞음) —
  * 같은 조합이 연달아 나오지 않고, 어느 조합도 오래 빠지지 않는다.
  */
 export function dailyGimmicks(dateStr) {

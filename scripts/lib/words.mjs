@@ -12,6 +12,6 @@ const readTexts = (kind) => Object.fromEntries(WORD_LENGTHS.map((len) => [len, r
 /** 모드별 출제 풀 — 스탠다드는 2~4글자, 사자성어는 4글자 사자성어만 */
 export const loadAnswerPool = (modeId = 'standard') => {
   const mode = modeOf(modeId);
-  return buildAnswerPool(mode.answersFile ? { 4: read(mode.answersFile) } : readTexts('answers'));
+  return mode.answersFile ? buildAnswerPool({ 4: read(mode.answersFile) }) : buildAnswerPool(readTexts('answers'), read('answers-simple.txt'));
 };
 export const loadGuessDictionary = () => buildGuessDictionary(readTexts('guesses'), read('compound-parts.txt'));

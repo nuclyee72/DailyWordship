@@ -10,7 +10,7 @@
  */
 import { onsetOf } from '../core/hangul.js';
 import { MIN_BOX, MAX_BOX, DEFAULT_SIZE, DIR_ARROW, geoOf, sameBox } from './board.js';
-import { GIMMICKS, hasGimmick, CHECKPOINTS, CHECKPOINT_PENALTY, GRAY_EVERY, START_PENALTY } from './gimmicks.js';
+import { GIMMICKS, hasGimmick, CHECKPOINTS, CHECKPOINT_PENALTY, GRAY_EVERY, START_PENALTY, reserveNeed } from './gimmicks.js';
 
 /** 기믹 때문에 거절할 때의 문구 — 모두 '기믹 이름 — 이유' */
 const why = (id, text) => `${GIMMICKS[id].label} — ${text}`;
@@ -49,7 +49,7 @@ export function shipMap(puzzle) {
  * @returns {{
  *   hidden: boolean[],     아직 초성이 가려진 칸 ('잠긴 칸'·'대각선 잠김' — 한 번 추측에 포함되면 풀린다)
  *   holes: boolean[],      판에 뚫린 칸 ('도넛 바다')
- *   blocked: (string|null)[],  이번 추측에 쓸 수 없는 칸과 그 이유 — 거리 두기 · 첫/끝 칸 십자 · 연속 주황 금지 · 회색 칸 금지
+ *   blocked: (string|null)[],  이번 추측에 쓸 수 없는 칸과 그 이유 — 거리 두기 · 첫/끝 칸 십자 · 연속 주황/노랑 금지 · 회색 칸 금지
  *   banLen: number|null,   이번 추측에 쓸 수 없는 길이 ('길이 바꾸기')
  *   banDir: string|null,   이번 추측에 쓸 수 없는 방향 ('방향 바꾸기')
  *   mustGray: boolean,     이번 추측은 회색(빈 바다) 칸을 포함해야 함 ('회색 칸 필수')
@@ -76,7 +76,7 @@ function strictRules(puzzle, guesses) {
   for (const idx of puzzle.holes ?? []) holes[idx] = true;
   const has = (id) => hasGimmick(puzzle, id);
   // 판 상태(명중·빈 바다)가 필요한 기믹만 상태를 계산한다
-  const st = has('noOrange') || has('noMiss') || has('gray3') ? computeState(puzzle, guesses, { maxGuesses: Infinity }) : null;
+  const st = has('noOrange') || has('noYellow') || has('noMiss') || has('gray3') ? computeState(puzzle, guesses, { maxGuesses: Infinity }) : null;
   const last = guesses[guesses.length - 1];
   const blocked = new Array(geo.cellCount).fill(null);
   const block = (idx, reason) => { blocked[idx] ??= reason; };
@@ -101,6 +101,13 @@ function strictRules(puzzle, guesses) {
     // 직전 추측이 주황 칸을 지나갔으면, 지금 주황인 칸은 이번에 못 쓴다
     if (has('noOrange') && st.results[st.results.length - 1]?.usedOrange) {
       st.hit.forEach((h, idx) => { if (h && !st.revealed[idx]) block(idx, why('noOrange', '이번 추측은 주황 칸 사용 불가')); });
+    }
+    // 직전 추측이 노랑 칸(글자 공개 · 아직 격침 전)을 지나갔으면, 지금 노랑인 칸은 이번에 못 쓴다
+    if (has('noYellow') && st.results[st.results.length - 1]?.usedYellow) {
+      const map = shipMap(puzzle);
+      st.revealed.forEach((syl, idx) => {
+        if (syl && !st.completed[map[idx].ship]) block(idx, why('noYellow', '이번 추측은 노랑 칸 사용 불가'));
+      });
     }
   }
   const banLen = last && has('alternate') ? last.len : null;
@@ -167,16 +174,19 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
  * 힌트 — 박스가 이미 명중으로 확인된 주황 칸(글자 미공개)을 지나면, 그중 박스에서 가장 앞(번호가 낮은)
  *   칸 하나의 글자를 틀렸어도 노랑으로 공개한다. 박스 밖 칸은 절대 열리지 않는다.
  * 완성(초록) — 함선 자리에 함선 이름을 정확히 입력했을 때만. 글자가 전부 노랑이어도 이름을 입력해야 초록.
- * 추측 소모 — 보통 1번. 기믹에 따라 벌점·보상이 붙는다 (guessCost). '보급 부족'이면 시작부터 3번 쓴 상태.
+ * 추측 소모 — 보통 1번. 기믹에 따라 벌점이 붙는다 (guessCost). '보급 부족'이면 시작부터 3번 쓴 상태.
+ * '미답 해역' — 한 번도 추측하지 않은 칸이 reserveNeed 밑으로 떨어지면 되돌릴 수 없으니 그 즉시 실패(lostBy 'reserve').
+ *   함대를 다 찾은 추측이라도 그 추측으로 모자라게 되면 실패다.
  * @returns {{
  *   revealed: (string|null)[],   칸별 공개된 음절 (노랑, 함선 완성 시 초록)
  *   hit: boolean[],              함선 칸으로 확인됨 (음절 공개 칸 포함)
  *   miss: boolean[],             빈 칸으로 확인됨
  *   completed: boolean[],        함선별 완성 여부
- *   results: { newCells, newHits, completedShips: number[], cost, penalty: number, usedOrange: boolean }[],
- *                                추측마다 새로 얻은 것 · 쓴 횟수 · 주황 칸을 지나갔는지('연속 주황 금지')
+ *   results: { newCells, newHits, completedShips: number[], cost, penalty: number, usedOrange, usedYellow: boolean }[],
+ *                                추측마다 새로 얻은 것 · 쓴 횟수 · 주황/노랑 칸을 지나갔는지('연속 주황/노랑 금지')
  *   used: number,                쓴 추측 수 (벌점 반영) — 한도와 비교하는 값
- *   status: 'playing'|'won'|'lost',
+ *   untouched: number,           한 번도 추측하지 않은 칸 수 (구멍 제외) · reserveNeed: '미답 해역'이면 필요한 수, 아니면 0
+ *   status: 'playing'|'won'|'lost',  lostBy: 'guesses'(추측을 다 씀) | 'reserve'(안 쓴 칸 부족) | null
  * }}
  */
 export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {}) {
@@ -189,6 +199,10 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
   const results = [];
   let used = hasGimmick(puzzle, 'lowStart') ? START_PENALTY : 0;
   let status = 'playing';
+  let lostBy = null;
+  const touched = new Array(geo.cellCount).fill(false);
+  let untouched = geo.cellCount - (puzzle.holes?.length ?? 0);
+  const need = hasGimmick(puzzle, 'reserve') ? reserveNeed(puzzle) : 0;
 
   for (const g of guesses) {
     if (status !== 'playing') break;
@@ -198,6 +212,9 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
     const newHits = [];
     // 이번 추측 전부터 주황(명중·글자 미공개)이던 칸 — 힌트 후보 (GDD §4)
     const orangeBefore = cells.filter((idx) => hit[idx] && !revealed[idx]);
+    // 이번 추측 전부터 노랑(글자 공개 · 아직 격침 전)이던 칸 — '연속 노랑 금지'
+    const yellowBefore = cells.some((idx) => revealed[idx] && !completed[map[idx].ship]);
+    for (const idx of cells) if (!touched[idx]) { touched[idx] = true; untouched--; }
     cells.forEach((idx, i) => {
       const at = map[idx];
       if (!at) { miss[idx] = true; return; }
@@ -221,11 +238,12 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
     });
     const { cost, penalty } = guessCost(puzzle, g.len, completedShips.length > 0, results.length + 1);
     used += cost + penalty;
-    results.push({ newCells, newHits, completedShips, cost, penalty, usedOrange: orangeBefore.length > 0 });
-    if (completed.every(Boolean)) status = 'won';
-    else if (used >= maxGuesses) status = 'lost';
+    results.push({ newCells, newHits, completedShips, cost, penalty, usedOrange: orangeBefore.length > 0, usedYellow: yellowBefore });
+    if (untouched < need) { status = 'lost'; lostBy = 'reserve'; } // 되돌릴 수 없다 — 함대를 다 찾았어도 실패
+    else if (completed.every(Boolean)) status = 'won';
+    else if (used >= maxGuesses) { status = 'lost'; lostBy = 'guesses'; }
   }
-  return { revealed, hit, miss, completed, results, used, status };
+  return { revealed, hit, miss, completed, results, used, untouched, reserveNeed: need, status, lostBy };
 }
 
 /** 추측 하나의 칸별 결과 — 'miss'(빈 바다) | 'hit'(함선, 글자 틀림) | 'match'(글자까지 맞음). 기록 목록용 */

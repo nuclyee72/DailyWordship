@@ -10,6 +10,7 @@
  *  - 영어 위키낱말사전 'Category:Korean four-character idioms' (MediaWiki API) — 사자성어 모드 출제 풀
  *  - mecab-ko-dic (Apache-2.0, lindera/mecab-ko-dic 사본) — NNG(일반 명사)·CoinedWord(신조어)·Foreign(외래어): 추측 사전 보강
  *  - kaikki.org 위키낱말사전 한국어 추출본 (CC BY-SA) — 명사 표제어: 추측 사전 보강
+ *  - 국립국어원 한국어 학습용 어휘 목록 (공공누리) — 등급 A(초급)·B(중급) 명사: '단순한 단어' 기믹의 함명 후보
  *  - 표준국어대사전 오픈 API — 출제 후보의 원어(origin)로 외래어 판별 (scripts/lib/word-origin.mjs, 캐시 scripts/data/word-origin.json)
  *  - src/data/curated/*.txt — 손으로 고른 보강 목록·블록리스트·사자성어 목록·외래어 동음이의어(loan-homographs.txt)
  *
@@ -17,6 +18,7 @@
  *  - answers-{2,3,4}.txt  함명 출제 풀. 상용 어휘 + 보강 목록 − 블록리스트 − 외래어(표준국어대사전 원어가 외국어인 말)
  *                         외래어가 섞인 혼종어(시내버스·골프장)와 한국어 뜻도 있는 동음이의어(기타·머리)는 남긴다
  *  - guesses-{2,3,4}.txt  추측 허용 사전. 위 출처 전부 ∪ 출제 풀 (외래어도 추측으로는 허용)
+ *  - answers-simple.txt   '단순한 단어' 기믹 함명 후보 — 출제 풀 ∩ 학습용 어휘 A·B등급 명사 (길이 무관, 한 줄에 하나)
  *  - answers-idiom.txt    사자성어 모드 출제 풀 (4글자). curated/idioms-extra.txt ∪ 위키낱말사전 분류
  *                         (위키낱말사전 쪽은 직접 목록이나 AllNouns에도 있는 것만 — 낯선 성어 배제)
  *  - compound-parts.txt   합성어 규칙용 부품 — 상용 명사 1~3글자. "부품 + 부품"인 3~4글자도 추측으로 허용한다
@@ -37,6 +39,9 @@ const SRC = {
   mecabCoined: 'https://raw.githubusercontent.com/lindera/mecab-ko-dic/main/CoinedWord.csv',
   mecabForeign: 'https://raw.githubusercontent.com/lindera/mecab-ko-dic/main/Foreign.csv',
   kaikki: 'https://kaikki.org/dictionary/Korean/kaikki.org-dictionary-Korean.jsonl.gz',
+  // 국립국어원 한국어 학습용 어휘 목록 (EUC-KR 탭 구분: 순위 · 단어 · 품사 · 풀이 · 등급)
+  learnerVocab: 'https://www.korean.go.kr/common/download.do?file_path=etcData&c_file_name=b73a8438-4713-4436-8481-ec26fd0dce2a_0.txt&o_file_name='
+    + encodeURIComponent('한국어 학습용 어휘 목록.txt'),
   idiomCategory: 'https://en.wiktionary.org/w/api.php?action=query&list=categorymembers&format=json&cmlimit=500'
     + '&cmtitle=' + encodeURIComponent('Category:Korean four-character idioms'),
 };
@@ -65,6 +70,20 @@ async function fetchText(url) {
 async function readCurated(name) {
   const text = await readFile(path.join(CURATED_DIR, name), 'utf8');
   return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).flatMap((l) => l.split(/\s+/));
+}
+
+/** 학습용 어휘 목록 → 등급 A·B(초급·중급) 명사 집합 (동형어 번호 '가격03'은 뗀다) */
+async function fetchEasyNouns() {
+  const res = await fetch(SRC.learnerVocab);
+  if (!res.ok) throw new Error(`학습용 어휘 목록 요청 실패: ${res.status}`);
+  const text = new TextDecoder('euc-kr').decode(await res.arrayBuffer());
+  const easy = new Set();
+  for (const line of text.split(/\r?\n/).slice(1)) {
+    const [, word, pos, , grade] = line.split('\t');
+    if (pos === '명' && (grade?.trim() === 'A' || grade?.trim() === 'B')) easy.add(word.replace(/\d+$/, ''));
+  }
+  if (easy.size < 1000) throw new Error(`학습용 어휘 목록 형식이 바뀐 것 같아요 (A·B등급 명사 ${easy.size}개)`);
+  return easy;
 }
 
 /** mecab-ko-dic CSV의 표층형(첫 칸) */
@@ -105,9 +124,10 @@ const sorted = (set) => [...set].sort((a, b) => a.localeCompare(b, 'ko'));
 
 async function main() {
   console.log('원본 명사 목록 내려받는 중...');
-  const [commonSrc, allSrc, oktSrc, oktWikiSrc, nngSrc, coinedSrc, foreignSrc, kaikkiNouns, wiktIdioms] = await Promise.all([
+  const [commonSrc, allSrc, oktSrc, oktWikiSrc, nngSrc, coinedSrc, foreignSrc, kaikkiNouns, easyNouns, wiktIdioms] = await Promise.all([
     ...[SRC.common, SRC.all, SRC.okt, SRC.oktWiki, SRC.mecabNng, SRC.mecabCoined, SRC.mecabForeign].map(fetchText),
     fetchKaikkiNouns(),
+    fetchEasyNouns(),
     fetchIdiomCategory(),
   ]);
   const common = parseNounsSource(commonSrc);
@@ -139,6 +159,7 @@ async function main() {
   const candidates = LENGTHS.flatMap((len) => [...common.filter((w) => isWordOfLen(w, len)), ...extras[len]]);
   const origin = await lookupMissing(loadOriginCache(), candidates);
 
+  const simple = [];
   for (const len of LENGTHS) {
     const answers = new Set(
       common
@@ -157,9 +178,12 @@ async function main() {
     if (len === 4) for (const w of idioms) guesses.add(w);
 
     await writeFile(path.join(DATA_DIR, `answers-${len}.txt`), sorted(answers).join('\n') + '\n');
+    simple.push(...[...answers].filter((w) => easyNouns.has(w)));
     await writeFile(path.join(DATA_DIR, `guesses-${len}.txt`), sorted(guesses).join('\n') + '\n');
     console.log(`${len}글자: 출제 ${answers.size}개 (외래어 ${loans.length}개 제외) · 추측 허용 ${guesses.size}개`);
   }
+  await writeFile(path.join(DATA_DIR, 'answers-simple.txt'), sorted(new Set(simple)).join('\n') + '\n');
+  console.log(`단순한 단어(초급·중급 함명 후보): ${simple.length}개`);
   // 합성어 부품: 상용 명사 1~3글자 (블록리스트의 고유명사는 뺀다)
   const parts = new Set(common.filter((w) => /^[가-힣]{1,3}$/.test(w) && !blocklist.has(w)));
   await writeFile(path.join(DATA_DIR, 'compound-parts.txt'), sorted(parts).join('\n') + '\n');

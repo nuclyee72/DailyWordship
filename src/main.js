@@ -137,8 +137,9 @@ const loadAnswerPool = (mode) => {
         if (!res.ok) throw new Error(`${mode.answersFile} 불러오기 실패 (${res.status})`);
         return res.text();
       }).then((text) => ({ 4: text }))
-      : fetchWordTexts('answers');
-    answerPoolPromises.set(key, texts.then(buildAnswerPool).catch((err) => {
+      : Promise.all([fetchWordTexts('answers'), fetch('src/data/answers-simple.txt').then((res) => (res.ok ? res.text() : ''))])
+        .then(([byLen, simple]) => ({ ...byLen, simple }));
+    answerPoolPromises.set(key, texts.then(({ simple = '', ...byLen }) => buildAnswerPool(byLen, simple)).catch((err) => {
       answerPoolPromises.delete(key);
       throw err;
     }));
@@ -325,6 +326,8 @@ function renderGimmickStatus() {
     if (playing && id === 'turn' && rules.banDir) detail = `이번엔 ${DIR_ARROW[rules.banDir]} ✕`;
     if (playing && (id === 'fog' || id === 'cross')) detail = `잠긴 칸 ${hiddenLeft}`;
     if (playing && id === 'noOrange' && lastResult?.usedOrange) detail = '이번엔 주황 ✕';
+    if (playing && id === 'noYellow' && lastResult?.usedYellow) detail = '이번엔 노랑 ✕';
+    if (id === 'reserve') detail = `남은 칸 ${state.untouched} · 최소 ${state.reserveNeed}`;
     if (playing && id === 'gray3') {
       const k = GRAY_EVERY - ((next - 1) % GRAY_EVERY) - 1; // 회색 필수까지 남은 추측
       detail = k ? `${k}번 뒤 회색` : rules.mustGray ? '이번엔 회색 필수' : '이번엔 면제';
@@ -525,10 +528,12 @@ btnNewFree.addEventListener('click', () => startFreePlay(session.mode.id));
 function showResultModal() {
   const won = state.status === 'won';
   dailyResultTitle.textContent = won ? '🎉 함대 격파!' : '아쉬워요';
+  // '미답 해역' — 안 쓴 칸이 모자라서 끝난 경우는 이유를 알려 준다
+  const reason = state.lostBy === 'reserve' ? `\n🗺️ 안 쓴 칸이 ${state.reserveNeed}칸 밑으로 떨어졌어요 (남은 칸 ${state.untouched})` : '';
   const summary = buildSummaryLine(state, session.puzzle.ships.length, session.mode.maxGuesses);
   const where = session.kind === 'daily' ? session.date : session.kind === 'free' ? '자유 연습' : `${session.date} 지난 퍼즐`;
   const gimmicks = session.puzzle.gimmicks.length ? `\n${gimmickLine(session.puzzle.gimmicks)}` : '';
-  dailyResultDetail.textContent = `${session.mode.label} · ${where} · ${summary}${session.kind === 'daily' ? '' : ' (기록에는 반영되지 않아요)'}${gimmicks}`;
+  dailyResultDetail.textContent = `${session.mode.label} · ${where} · ${summary}${session.kind === 'daily' ? '' : ' (기록에는 반영되지 않아요)'}${gimmicks}${reason}`;
   // 공유 텍스트와 같은 그림이지만, 화면에서는 칸 폭을 고정해 줄을 정확히 맞춘다 (공백 = 빈 칸)
   dailyResultGrid.replaceChildren(...buildFleetGrid(session.puzzle, state).split('\n').map((line) => {
     const row = document.createElement('div');

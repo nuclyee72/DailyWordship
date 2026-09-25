@@ -7,7 +7,7 @@ import { onsetOf, onsetsOf } from '../src/core/hangul.js';
 import { boardOf } from '../src/game/board.js';
 import { FLEET, MAX_GUESSES, computeState, validateGuess, resultEmoji, guessRules, parsePuzzle } from '../src/game/game.js';
 import { generatePuzzle, countDecoys, DEFAULT_MIN_DECOYS } from '../src/game/generator.js';
-import { GIMMICK_IDS, GIMMICK_PAIRS, dailyGimmicks, FOG_RATIO, fleetFor, holesFor, boardSizeFor } from '../src/game/gimmicks.js';
+import { GIMMICK_IDS, GIMMICK_PAIRS, dailyGimmicks, FOG_RATIO, fleetFor, holesFor, boardSizeFor, reserveNeed } from '../src/game/gimmicks.js';
 import { distBuckets, bucketIndexFor } from '../src/daily/storage.js';
 import { loadAnswerPool, loadGuessDictionary } from './lib/words.mjs';
 import { MODES } from '../src/game/modes.js';
@@ -101,7 +101,7 @@ test('칸별 판정 — 명중·음절·빈칸', () => {
   const s = computeState(P, [g(0, 0, 'h', '바람새')]);
   eq(s.revealed.slice(0, 3), ['바', null, '새']);
   eq(s.hit.slice(0, 3), [true, true, true]);
-  eq(s.results[0], { newCells: [0, 2], newHits: [0, 1, 2], completedShips: [], cost: 1, penalty: 0, usedOrange: false });
+  eq(s.results[0], { newCells: [0, 2], newHits: [0, 1, 2], completedShips: [], cost: 1, penalty: 0, usedOrange: false, usedYellow: false });
   eq(s.used, 1);
   const s2 = computeState(P, [g(1, 0, 'h', '아아아')]);
   eq(s2.miss.slice(8, 11), [true, true, true]);
@@ -232,10 +232,10 @@ test('사자성어 퍼즐 30개 — 4칸 5척, 함명 전부 사자성어, 같�
 // 손으로 만든 판(P)에 기믹만 바꿔 끼운다
 const withG = (gimmicks, extra = {}) => ({ ...P, size: 8, gimmicks, locked: [], holes: [], ...extra });
 
-test('그날의 기믹 — 결정적 · 서로 다른 2개 · 167일에 167조합 전부 · 이틀 연속 같은 조합 없음 · 못 겹치는 짝 없음', () => {
-  eq(GIMMICK_IDS.length, 19);
+test('그날의 기믹 — 결정적 · 서로 다른 2개 · 227일에 227조합 전부 · 이틀 연속 같은 조합 없음 · 못 겹치는 짝 없음', () => {
+  eq(GIMMICK_IDS.length, 22);
   const n = GIMMICK_PAIRS.length;
-  eq(n, 171 - 4);
+  eq(n, 231 - 4);
   eq(dailyGimmicks('2026-09-25'), dailyGimmicks('2026-09-25'));
   const days = Array.from({ length: n * 3 }, (_, i) => {
     const d = new Date(Date.UTC(2026, 8, 23 + i)).toISOString().slice(0, 10);
@@ -337,6 +337,58 @@ test('연속 주황 금지 — 주황 칸을 지난 추측 다음엔 주황 칸�
   ok(!v.ok && v.reason.includes('연속 주황'), v.reason);
   ok(validateGuess(p, [...twice, g(5, 0, 'h', '아아')], { r: 0, c: 1, dir: 'v', len: 2 }, '도아', null).ok, '한 번 쉬면 다시 가능');
   eq(computeState(p, twice).results.map((x) => x.usedOrange), [false, true]);
+});
+
+test('연속 노랑 금지 — 노랑 칸을 지난 추측 다음엔 노랑 칸을 못 씀', () => {
+  const p = withG(['noYellow']);
+  const pre = [g(0, 0, 'h', '바람새')]; // a1(바)·c1(새) 노랑, b1 주황
+  eq(guessRules(p, pre).blocked.filter(Boolean).length, 0, '처음 노랑이 된 추측 다음은 자유');
+  const twice = [...pre, g(0, 0, 'v', '바아')]; // a1(노랑)을 지나감
+  const r = guessRules(p, twice);
+  ok(r.blocked[0] && r.blocked[2] && !r.blocked[1], 'a1·c1(노랑) 금지, b1(주황)은 자유');
+  const v = validateGuess(p, twice, { r: 0, c: 0, dir: 'h', len: 3 }, '바다새', null);
+  ok(!v.ok && v.reason.includes('연속 노랑'), v.reason);
+  ok(validateGuess(p, [...twice, g(5, 0, 'h', '아아')], { r: 0, c: 0, dir: 'h', len: 3 }, '바다새', null).ok, '한 번 쉬면 다시 가능');
+  eq(computeState(p, twice).results.map((x) => x.usedYellow), [false, true]);
+  // 격침한 함선(초록) 칸은 노랑이 아니다
+  const sunk = [g(0, 0, 'h', '바다새'), g(0, 0, 'v', '바아')];
+  eq(computeState(p, sunk).results[1].usedYellow, false, '초록 칸은 노랑 아님');
+});
+
+test('미답 해역 — 끝날 때 안 쓴 칸 1/8 이상, 모자라게 되는 순간 실패', () => {
+  eq([reserveNeed({ size: 8 }), reserveNeed({ size: 7 }), reserveNeed({ size: 10 }), reserveNeed({ size: 12, holes: new Array(16) })], [8, 7, 13, 16]);
+  const p = withG(['reserve']);
+  const win = computeState(p, [g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')]);
+  eq([win.status, win.untouched, win.reserveNeed, win.lostBy], ['won', 57, 8, null], '7칸만 쓰고 격파');
+  // 2~8행의 a~g열(49칸)을 훑으면 안 쓴 칸 15 — 여기에 함대 7칸을 더 쓰면 딱 8칸 남아 성공
+  const sweep = [];
+  for (let r = 1; r < 8; r++) for (const c of [0, 3]) sweep.push(g(r, c, 'h', '아아아아'));
+  const fill = computeState(p, sweep, { maxGuesses: 99 });
+  eq([fill.untouched, fill.status], [15, 'playing'], '7줄 × 7칸(a~g)');
+  const exact = computeState(p, [...sweep, g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')], { maxGuesses: 99 });
+  eq([exact.untouched, exact.status], [8, 'won'], '딱 1/8 남기고 격파 → 성공');
+  // 두 칸만 더 썼으면 — 마지막 함선을 격침하는 추측으로 8칸 밑이 되니 함대를 다 찾았어도 실패
+  const over = computeState(p, [...sweep, g(0, 3, 'h', '아아'), g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')], { maxGuesses: 99 });
+  eq([over.untouched, over.status, over.lostBy], [6, 'lost', 'reserve'], '격파했어도 안 쓴 칸 6 < 8 → 실패');
+  const early = computeState(p, [...sweep, g(0, 3, 'h', '아아아아'), g(4, 7, 'v', '아아아아'), g(0, 0, 'h', '바다새')], { maxGuesses: 99 });
+  eq([early.untouched, early.status, early.results.length], [7, 'lost', 16], '모자라게 된 그 추측에서 끝 (다음 추측은 무시)');
+  const lastWins = computeState(p, [g(1, 0, 'h', '아아아아'), g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')]);
+  eq(lastWins.status, 'won');
+  eq(computeState(P, sweep, { maxGuesses: 99 }).reserveNeed, 0, '기믹 없으면 조건 없음');
+});
+
+test('단순한 단어 — 함선 이름은 초급·중급 어휘(answers-simple.txt)에서만', () => {
+  const pool = loadAnswerPool('extended');
+  ok(pool.simple.size > 1000, `단순한 단어 ${pool.simple.size}개`);
+  for (const len of [2, 3, 4]) ok(pool.words[len].some((w) => !pool.simple.has(w)), `${len}글자에 어려운 단어도 있음`);
+  for (let i = 0; i < 20; i++) {
+    const puz = generatePuzzle(`simple-test:${i}`, pool, { fleet: MODES.extended.fleet, minDecoys: MODES.extended.minDecoys, gimmicks: ['simple', i % 2 ? 'fog' : 'wide'] });
+    ok(puz.ships.every((s) => pool.simple.has(s.name)), `${i}: ${puz.ships.map((s) => s.name)}`);
+  }
+  // 기믹이 없으면 같은 시드로 예전과 같은 판 (단순한 단어 목록이 생겨도 스탠다드는 그대로)
+  const a = generatePuzzle('same-seed', pool, { fleet: MODES.extended.fleet, minDecoys: MODES.extended.minDecoys });
+  const b = generatePuzzle('same-seed', { ...pool, simple: new Set() }, { fleet: MODES.extended.fleet, minDecoys: MODES.extended.minDecoys });
+  eq(a.ships.map((s) => s.name), b.ships.map((s) => s.name));
 });
 
 test('관문 — 10·20번째 추측에 함선을 완성하지 못하면 −5', () => {

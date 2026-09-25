@@ -9,8 +9,11 @@ export const WORD_LENGTHS = [2, 3, 4];
 
 const parseList = (text) => text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
-/** 출제 풀 — 생성기가 함명을 고르고 미끼 박스를 셀 때 쓴다 */
-export function buildAnswerPool(textsByLen) {
+/**
+ * 출제 풀 — 생성기가 함명을 고르고 미끼 박스를 셀 때 쓴다.
+ * simpleText: '단순한 단어' 기믹용 — 출제 풀 중 초급·중급 어휘 (src/data/answers-simple.txt, 길이 무관 한 줄에 하나)
+ */
+export function buildAnswerPool(textsByLen, simpleText = '') {
   const words = {};
   const byPattern = new Map(); // 'ㄷㅅㄱ' → ['다슬기', ...]
   for (const len of WORD_LENGTHS) {
@@ -23,6 +26,8 @@ export function buildAnswerPool(textsByLen) {
   }
   return {
     words,
+    /** '단순한 단어' 기믹일 때 함명으로 쓸 수 있는 단어 */
+    simple: new Set(parseList(simpleText)),
     /** 초성열에 맞는 출제 단어들 (없으면 빈 배열) */
     matching: (pattern) => byPattern.get(pattern) ?? [],
   };
