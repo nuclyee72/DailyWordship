@@ -755,7 +755,7 @@ html, body {
 .element-sidebar[hidden] { display: none; }
 
 .element-bookmark {
-  --bw: 250px;
+  --bw: 228px;
   display: flex;
   align-items: stretch;
   transform: translateX(calc(-1 * var(--bw)));
@@ -772,8 +772,8 @@ html, body {
   width: var(--bw);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 15px;
+  gap: 5px;
+  padding: 11px 12px;
   border-radius: 0 4px 4px 0;
   background: rgba(var(--glass-rgb), 0.95);
   backdrop-filter: blur(18px);
@@ -787,28 +787,28 @@ html, body {
   order: 2;
   flex: 0 0 auto;
   /* 모든 책갈피 손잡이를 동일한 고정 크기로 — 이모지/글자 폭 차이로 크기가 달라지지 않게 */
-  width: 40px;
-  height: 88px;
+  width: 34px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 1px solid rgba(var(--glass-rgb), 0.6);
   border-left: none;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 10px 10px 0;
   background: var(--text-input);
   cursor: pointer;
   box-shadow: 6px 0 18px rgba(20, 24, 40, 0.16);
 }
 
 .element-bookmark-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
 }
 
@@ -817,12 +817,12 @@ html, body {
   align-items: center;
   gap: 6px;
   font-family: 'Outfit', 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-given);
 }
 
-.element-bookmark-head b { font-size: 16px; }
+.element-bookmark-head b { font-size: 15px; }
 
 .element-bookmark-head em {
   margin-left: auto;
@@ -839,20 +839,18 @@ html, body {
 }
 
 .element-bookmark-desc {
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.55;
   color: rgba(var(--text-given-rgb), 0.7);
 }
 
-/* 좁은 화면 — 책갈피 손잡이(40px)가 판 왼쪽 칸을 가리지 않게 그만큼 비우고 판을 줄인다
-   (스도쿠의 sidebarPad와 같은 역할). 넓은 화면은 판이 가운데라 원래 여유가 있다 */
+/* 좁은 화면 — 따로 공간을 떼지 않는다: 판은 스탠다드와 같은 크기·위치 그대로, 책갈피는 작게 만들어
+   판 카드의 왼쪽 여백·행 번호 줄 위에 겹쳐 둔다 (판 칸은 가리지 않음) */
 @media (max-width: 759px) {
-  .element-sidebar { top: 112px; gap: 8px; }
-  .element-bookmark { --bw: min(74vw, 250px); }
-  .ws-game.has-sidebar {
-    --board: min(calc(100vw - 96px), 440px, max(248px, calc(100dvh - 330px)));
-    padding-left: 56px;
-  }
+  .element-sidebar { top: 104px; gap: 6px; }
+  .element-bookmark { --bw: min(70vw, 228px); }
+  .element-bookmark-handle { width: 26px; height: 58px; border-radius: 0 9px 9px 0; }
+  .element-bookmark-icon { width: 16px; height: 16px; font-size: 12px; }
 }
 
 /* 오른쪽 열(입력 + 기록) — 좁은 화면에선 없는 셈 치고 세로로 이어 붙인다 */
@@ -1027,10 +1025,10 @@ html, body {
   }
   .ws-guess-form, .ws-history { width: 100%; }
 }
-/* 넓은 화면에서도 가운데 정렬한 판 왼쪽 여백이 손잡이(40px)보다 좁아지는 폭(760~1000px)이 있어 같이 비운다 */
+/* 넓은 화면에서도 가운데 정렬한 판 왼쪽 여백이 손잡이(34px)보다 좁아지는 폭(760~1000px)이 있어 같이 비운다 */
 @media (min-width: 760px) {
   .ws-game.has-sidebar {
-    --board: min(calc(100dvh - 150px), 520px, calc(100vw - var(--side) - 176px));
-    padding-left: 56px;
+    --board: min(calc(100dvh - 150px), 520px, calc(100vw - var(--side) - 168px));
+    padding-left: 48px;
   }
 }
