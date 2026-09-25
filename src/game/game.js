@@ -18,6 +18,8 @@ const why = (id, text) => `${GIMMICKS[id].label} — ${text}`;
 /** 함대 — 4칸 1척, 3칸 3척, 2칸 2척 (GDD §3) */
 export const FLEET = [4, 3, 3, 3, 2, 2];
 export const MAX_GUESSES = 30;
+/** 이스터에그 단어 — 추측하면 횟수를 쓰지 않고 오히려 1번 늘어난다 (cost −1). 추측 사전에도 있어야 한다 (curated/guesses-extra.txt) */
+export const BONUS_WORDS = new Set(['메루루']);
 /** 뚫린 칸의 초성 자리 — 어떤 단어의 초성열과도 맞지 않아서 미끼 계산에서 저절로 빠진다 */
 export const HOLE_ONSET = '■';
 
@@ -175,6 +177,7 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
  *   칸 하나의 글자를 틀렸어도 노랑으로 공개한다. 박스 밖 칸은 절대 열리지 않는다.
  * 완성(초록) — 함선 자리에 함선 이름을 정확히 입력했을 때만. 글자가 전부 노랑이어도 이름을 입력해야 초록.
  * 추측 소모 — 보통 1번. 기믹에 따라 벌점이 붙는다 (guessCost). '보급 부족'이면 시작부터 3번 쓴 상태.
+ *   이스터에그 단어(BONUS_WORDS)는 cost −1 — 오히려 1번 늘어난다 (기믹 벌점은 그대로).
  * '미답 해역' — 한 번도 추측하지 않은 칸이 reserveNeed 밑으로 떨어지면 되돌릴 수 없으니 그 즉시 실패(lostBy 'reserve').
  *   함대를 다 찾은 추측이라도 그 추측으로 모자라게 되면 실패다.
  * @returns {{
@@ -236,7 +239,8 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
       completed[s] = true;
       completedShips.push(s);
     });
-    const { cost, penalty } = guessCost(puzzle, g.len, completedShips.length > 0, results.length + 1);
+    const { cost: baseCost, penalty } = guessCost(puzzle, g.len, completedShips.length > 0, results.length + 1);
+    const cost = BONUS_WORDS.has(g.word) ? -1 : baseCost;
     used += cost + penalty;
     results.push({ newCells, newHits, completedShips, cost, penalty, usedOrange: orangeBefore.length > 0, usedYellow: yellowBefore });
     if (untouched < need) { status = 'lost'; lostBy = 'reserve'; } // 되돌릴 수 없다 — 함대를 다 찾았어도 실패

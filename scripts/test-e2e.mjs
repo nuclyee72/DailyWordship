@@ -283,12 +283,17 @@ try {
     await page.fill('#ws-word-input', '메루루');
     await page.press('#ws-word-input', 'Enter');
     await page.waitForSelector('.easter-egg', { timeout: 15000 });
-    assert('메루루 — 사전에 있는 단어로 받아 줌 (추측 1번 씀)', (await page.textContent('#ws-guesses-left')) === String(MAX_GUESSES - 1));
+    assert(`메루루 — 받아 주고 기회 +1 (남은 추측 ${MAX_GUESSES + 1})`, (await page.textContent('#ws-guesses-left')) === String(MAX_GUESSES + 1));
+    assert('메루루 — 기록에 +1 배지', (await page.textContent('.ws-history-item .ws-history-cost.is-bonus')) === '+1');
     await page.waitForFunction(() => { const e = document.querySelector('.easter-egg'); return e && e.complete && e.naturalWidth > 0; });
-    await page.waitForTimeout(700); // 첫 점프 꼭대기 근처
+    // 쉬는 구간(68~80% = 2.04~2.4초)에 애니메이션을 멈춰 놓고 잰다 — 위쪽 60%만 보이고 아래는 화면 밖
+    const pauseAt = (ms) => page.evaluate((t) => { const a = document.querySelector('.easter-egg').getAnimations()[0]; a.pause(); a.currentTime = t; }, ms);
+    await pauseAt(2200);
     const r = await page.locator('.easter-egg').boundingBox();
-    assert(`메루루 — 오른쪽 아래에서 떠오름 (${Math.round(r.x + r.width)}, ${Math.round(r.y + r.height)})`, r.x + r.width <= 390 && r.x > 390 / 2 && r.y + r.height > 844 * 0.8);
+    const shown = (844 - r.y) / r.height;
+    assert(`메루루 — 오른쪽 아래에서 위쪽 ${Math.round(shown * 100)}%만 보임`, r.x + r.width <= 390 && r.x > 390 / 2 && Math.abs(shown - 0.6) < 0.03);
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, 'phone-10-easter-egg.png') });
+    await page.evaluate(() => document.querySelector('.easter-egg').getAnimations()[0].play());
     await page.waitForSelector('.easter-egg', { state: 'detached', timeout: 5000 });
     assert('메루루 — 애니메이션 끝나면 사라짐', await page.locator('.easter-egg').count() === 0);
     await context.close();

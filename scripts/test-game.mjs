@@ -115,6 +115,11 @@ test('누적 완성 → 초록 · 승리', () => {
   const w = computeState(P, [g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')]);
   eq(w.status, 'won');
 });
+test('이스터에그 메루루 — 추측 횟수 +1 (cost −1)', () => {
+  const s = computeState(P, [g(1, 0, 'h', '메루루'), g(1, 0, 'h', '아아아')]);
+  eq(s.results.map((r) => r.cost), [-1, 1]);
+  eq(s.used, 0);
+});
 test('주황 칸을 지나는 추측 → 틀려도 그 칸 글자만 노랑 힌트 (박스 밖은 안 열림)', () => {
   // 1) 바다새의 '다' 칸(b1)만 대각선으로 명중 (글자 틀림) → 주황
   const s1 = computeState(P, [g(0, 1, 'd', '도아')]);

@@ -1,5 +1,6 @@
 /**
- * easterEgg.js — 특정 단어를 추측하면 화면 오른쪽 아래에서 캐릭터가 뛰어올랐다 내려간다.
+ * easterEgg.js — 특정 단어를 추측하면 화면 오른쪽 아래에서 캐릭터가 뛰어올랐다 내려간다 (위쪽 60%만 보임).
+ * 기회 +1은 게임 규칙 쪽 — src/game/game.js BONUS_WORDS.
  * 단어는 추측 사전에도 들어 있어야 한다 (src/data/curated/guesses-extra.txt).
  * 애니메이션은 style.css의 .easter-egg — 끝나면 스스로 사라진다. 판·입력은 막지 않는다(pointer-events: none).
  */

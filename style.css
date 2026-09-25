@@ -1047,24 +1047,25 @@ html, body {
   filter: drop-shadow(0 8px 16px rgba(20, 24, 40, 0.25));
   animation: easter-egg-jump 3s both;
 }
-/* 구간마다 timing-function을 따로 — 올라갈 땐 감속(ease-out), 떨어질 땐 가속(ease-in)이라 점프처럼 보인다 */
+/* 착지 자리는 translateY(40%) — 아래 40%는 화면 밖으로 잘리고 위쪽 60%만 보인다 (점프할 땐 조금 더 올라옴)
+   구간마다 timing-function을 따로 — 올라갈 땐 감속(ease-out), 떨어질 땐 가속(ease-in)이라 점프처럼 보인다 */
 @keyframes easter-egg-jump {
   0%   { transform: translateY(110%); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
-  22%  { transform: translateY(-14%); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
-  34%  { transform: translateY(0) scale(1.04, 0.96); animation-timing-function: ease-out; }
-  40%  { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
-  52%  { transform: translateY(-7%); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
-  62%  { transform: translateY(0) scale(1.02, 0.98); animation-timing-function: ease-out; }
-  68%  { transform: translateY(0) scale(1); }
-  80%  { transform: translateY(0); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
-  86%  { transform: translateY(-6%); animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5); }
+  22%  { transform: translateY(26%); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
+  34%  { transform: translateY(40%) scale(1.04, 0.96); animation-timing-function: ease-out; }
+  40%  { transform: translateY(40%) scale(1); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  52%  { transform: translateY(33%); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
+  62%  { transform: translateY(40%) scale(1.02, 0.98); animation-timing-function: ease-out; }
+  68%  { transform: translateY(40%) scale(1); }
+  80%  { transform: translateY(40%); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  86%  { transform: translateY(34%); animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5); }
   100% { transform: translateY(110%); }
 }
 /* 움직임 줄이기 설정이면 튀지 않고 잠깐 나타났다 사라지기만 */
 @media (prefers-reduced-motion: reduce) {
   .easter-egg { animation-name: easter-egg-fade; animation-duration: 2.4s; }
   @keyframes easter-egg-fade {
-    0%, 100% { transform: translateY(0); opacity: 0; }
-    15%, 80% { transform: translateY(0); opacity: 1; }
+    0%, 100% { transform: translateY(40%); opacity: 0; }
+    15%, 80% { transform: translateY(40%); opacity: 1; }
   }
 }

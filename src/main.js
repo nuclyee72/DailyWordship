@@ -383,6 +383,7 @@ function renderHistory() {
       li.appendChild(b);
     };
     if (result?.cost > 1) badge(`−${result.cost}`, `추측 ${result.cost}번 소모 (길이 3 선호)`);
+    if (result?.cost < 0) badge(`+${-result.cost}`, `이스터에그 — 추측 ${-result.cost}번 늘어남`, true);
     if (result?.penalty) badge(`🚩−${result.penalty}`, `관문 실패 — 추측 ${result.penalty}번 더 줄어듦`);
     else if (result && session.puzzle.gimmicks.includes('checkpoint') && CHECKPOINTS.includes(n + 1)) badge('🚩', '관문 통과', true);
     li.addEventListener('click', () => renderer.flash(g));
