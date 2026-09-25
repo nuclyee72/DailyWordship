@@ -4,20 +4,26 @@
 
 | 파일 | 용도 | 개수 (2026-09-23 빌드) |
 |---|---|---|
-| `answers-2.txt` · `answers-3.txt` · `answers-4.txt` | **출제 풀** — 함명은 여기서만 뽑는다 | 2,145 · 737 · 739 |
-| `guesses-2.txt` · `guesses-3.txt` · `guesses-4.txt` | **추측 허용 사전** — 플레이어 입력 단어 검사 | 82,316 · 163,558 · 48,429 (2026-09-24) |
+| `answers-2.txt` · `answers-3.txt` · `answers-4.txt` | **출제 풀** — 함명은 여기서만 뽑는다 | 2,052 · 648 · 396 (2026-09-25) |
+| `guesses-2.txt` · `guesses-3.txt` · `guesses-4.txt` | **추측 허용 사전** — 플레이어 입력 단어 검사 | 83,474 · 165,715 · 83,923 (2026-09-25) |
 | `answers-idiom.txt` | **사자성어 모드 출제 풀** — 4글자 사자성어만 | 416 |
 | `curated/idioms-extra.txt` | 사자성어 직접 목록 (널리 아는 것) | 407 |
 | `compound-parts.txt` | **합성어 규칙 부품** — 상용 명사 1~3글자. 부품+부품인 3~4글자도 추측 허용 | 3,120 |
 | `curated/answers-3-extra.txt` | 3글자 출제 풀 보강 (손으로 고름) | |
 | `curated/answers-4-extra.txt` | 4글자 출제 풀 보강 (손으로 고름) | |
 | `curated/blocklist.txt` | 출제 풀에서 뺄 단어 — 고유명사·부사류 (추측은 허용) | |
+| `curated/loan-homographs.txt` | 출제 풀에서 뺄 외래어 중 한국어 동음이의어도 있어 자동 판별이 안 되는 것 (소파·파일·피시) | |
+| `../../scripts/data/word-origin.json` | 출제 후보의 표준국어대사전 원어 캐시 — 외래어 판별용 | |
 
 ## 만드는 규칙
 
-- **출제 풀** = 상용 어휘(CommonNouns)의 2~4글자 순한글 명사 + `curated/answers-*-extra.txt` − `curated/blocklist.txt`
+- **출제 풀** = 상용 어휘(CommonNouns)의 2~4글자 순한글 명사 + `curated/answers-*-extra.txt` − `curated/blocklist.txt` − **외래어**
+  - **외래어** = 표준국어대사전의 원어가 전부 외국어인 말(컴퓨터 computer, 라면 râmen, 아파트 apartment). 추측으로는 허용
+  - 외래어가 섞인 혼종어(시내버스, 골프장, 금메달)와 한국어 동음이의어가 있는 말(기타 其他/guitar, 머리)은 남긴다 — 단, 외래어 뜻이 주인 소파·파일·피시는 `curated/loan-homographs.txt`로 뺀다
+  - 원어는 `scripts/lib/word-origin.mjs`가 표준국어대사전 오픈 API로 조회해 `scripts/data/word-origin.json`에 쌓는다. 새 후보만 조회하며, 키는 `STDICT_KEY` 환경변수나 `.env`(git에 안 올라감). 키가 없으면 새 후보는 판별 없이 남는다
   - 3글자 `-적` 관형 명사(간접적·경제적…)는 함명으로 밋밋해서 뺀다
-- **추측 허용 사전** = CommonNouns ∪ AllNouns ∪ open-korean-text 일반 명사 ∪ open-korean-text 위키백과 표제어 명사 ∪ 출제 풀
+- **추측 허용 사전** = CommonNouns ∪ AllNouns ∪ open-korean-text 일반 명사 ∪ open-korean-text 위키백과 표제어 명사 ∪ mecab-ko-dic 일반 명사·신조어·외래어 ∪ 위키낱말사전 명사 ∪ 출제 풀
+  - mecab-ko-dic·위키낱말사전으로 4글자 합성어(시곗바늘·생년월일)·신조어(멘탈·여친)·외래어(클라이밍)를 넓혔다. 비속어·방언도 조금 섞이지만 추측 허용용이라 출제에는 안 쓰인다
   - 위키 표제어에는 고유명사도 섞여 있지만, 추측 사전의 역할은 "아무 음절이나 넣어 떠보기"를 막는 것뿐이라 넉넉한 편이 낫다
   - 목록에 없어도 **상용 명사 + 상용 명사**로 쪼개지는 3~4글자는 합성어로 인정 (`라면+집`, `택시+비`, `운동화+끈`) — `src/core/dictionary.js`
 
@@ -38,4 +44,7 @@
   - `AllNouns` ← 표준국어대사전 명사
 - [open-korean-text](https://github.com/open-korean-text/open-korean-text) `noun/nouns.txt`, `noun/wikipedia_title_nouns.txt` — **Apache-2.0**
 - 영어 위키낱말사전 [Category:Korean four-character idioms](https://en.wiktionary.org/wiki/Category:Korean_four-character_idioms) — 표제어 목록만 사용 (CC BY-SA 4.0)
+- [mecab-ko-dic](https://bitbucket.org/eunjeon/mecab-ko-dic) (은전한닢 프로젝트) `NNG.csv`·`CoinedWord.csv`·`Foreign.csv` — **Apache-2.0**. [lindera/mecab-ko-dic](https://github.com/lindera/mecab-ko-dic) 사본에서 받음
+- [kaikki.org](https://kaikki.org/dictionary/Korean/) 위키낱말사전 한국어 추출본 — 명사 표제어만 사용 (위키낱말사전 원문 CC BY-SA 4.0)
+- [국립국어원 표준국어대사전](https://stdict.korean.go.kr) 오픈 API — 출제 후보의 원어(외래어 판별)만 사용
 - `curated/*.txt` — 이 저장소에서 직접 작성

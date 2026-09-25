@@ -8,11 +8,15 @@
  *  - open-korean-text/open-korean-text (Apache-2.0) — nouns.txt (일반 명사 사전),
  *    wikipedia_title_nouns.txt (위키백과 표제어 명사 — 합성어·외래어가 많다. 고유명사도 섞여 있지만 추측용이라 괜찮다)
  *  - 영어 위키낱말사전 'Category:Korean four-character idioms' (MediaWiki API) — 사자성어 모드 출제 풀
- *  - src/data/curated/*.txt — 손으로 고른 보강 목록·블록리스트·사자성어 목록
+ *  - mecab-ko-dic (Apache-2.0, lindera/mecab-ko-dic 사본) — NNG(일반 명사)·CoinedWord(신조어)·Foreign(외래어): 추측 사전 보강
+ *  - kaikki.org 위키낱말사전 한국어 추출본 (CC BY-SA) — 명사 표제어: 추측 사전 보강
+ *  - 표준국어대사전 오픈 API — 출제 후보의 원어(origin)로 외래어 판별 (scripts/lib/word-origin.mjs, 캐시 scripts/data/word-origin.json)
+ *  - src/data/curated/*.txt — 손으로 고른 보강 목록·블록리스트·사자성어 목록·외래어 동음이의어(loan-homographs.txt)
  *
  * 산출물 (src/data/, 한 줄에 한 단어, 가나다순)
- *  - answers-{2,3,4}.txt  함명 출제 풀. 상용 어휘 + 보강 목록 − 블록리스트
- *  - guesses-{2,3,4}.txt  추측 허용 사전. 위 출처 전부 ∪ 출제 풀
+ *  - answers-{2,3,4}.txt  함명 출제 풀. 상용 어휘 + 보강 목록 − 블록리스트 − 외래어(표준국어대사전 원어가 외국어인 말)
+ *                         외래어가 섞인 혼종어(시내버스·골프장)와 한국어 뜻도 있는 동음이의어(기타·머리)는 남긴다
+ *  - guesses-{2,3,4}.txt  추측 허용 사전. 위 출처 전부 ∪ 출제 풀 (외래어도 추측으로는 허용)
  *  - answers-idiom.txt    사자성어 모드 출제 풀 (4글자). curated/idioms-extra.txt ∪ 위키낱말사전 분류
  *                         (위키낱말사전 쪽은 직접 목록이나 AllNouns에도 있는 것만 — 낯선 성어 배제)
  *  - compound-parts.txt   합성어 규칙용 부품 — 상용 명사 1~3글자. "부품 + 부품"인 3~4글자도 추측으로 허용한다
@@ -21,12 +25,18 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
+import { loadOriginCache, lookupMissing, wordType } from './lib/word-origin.mjs';
 
 const SRC = {
   common: 'https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/CommonNouns.js',
   all: 'https://raw.githubusercontent.com/han-dle/pd-korean-noun-list-for-wordles/main/src/AllNouns.js',
   okt: 'https://raw.githubusercontent.com/open-korean-text/open-korean-text/master/src/main/resources/org/openkoreantext/processor/util/noun/nouns.txt',
   oktWiki: 'https://raw.githubusercontent.com/open-korean-text/open-korean-text/master/src/main/resources/org/openkoreantext/processor/util/noun/wikipedia_title_nouns.txt',
+  mecabNng: 'https://raw.githubusercontent.com/lindera/mecab-ko-dic/main/NNG.csv',
+  mecabCoined: 'https://raw.githubusercontent.com/lindera/mecab-ko-dic/main/CoinedWord.csv',
+  mecabForeign: 'https://raw.githubusercontent.com/lindera/mecab-ko-dic/main/Foreign.csv',
+  kaikki: 'https://kaikki.org/dictionary/Korean/kaikki.org-dictionary-Korean.jsonl.gz',
   idiomCategory: 'https://en.wiktionary.org/w/api.php?action=query&list=categorymembers&format=json&cmlimit=500'
     + '&cmtitle=' + encodeURIComponent('Category:Korean four-character idioms'),
 };
@@ -57,6 +67,23 @@ async function readCurated(name) {
   return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).flatMap((l) => l.split(/\s+/));
 }
 
+/** mecab-ko-dic CSV의 표층형(첫 칸) */
+const mecabSurfaces = (csv) => csv.split(/\r?\n/).map((l) => l.slice(0, l.indexOf(',')));
+
+/** kaikki.org 위키낱말사전 한국어 추출본(JSONL.gz)의 명사 표제어 */
+async function fetchKaikkiNouns() {
+  const res = await fetch(SRC.kaikki, { headers: { 'User-Agent': 'wordship-build-word-data/1.0 (github.com/nuclyee72/DailyWordship)' } });
+  if (!res.ok) throw new Error(`${SRC.kaikki} 요청 실패: ${res.status}`);
+  const lines = gunzipSync(Buffer.from(await res.arrayBuffer())).toString('utf8').split('\n');
+  const nouns = [];
+  for (const line of lines) {
+    if (!line) continue;
+    const e = JSON.parse(line);
+    if (e.pos === 'noun') nouns.push(e.word);
+  }
+  return nouns;
+}
+
 /** 위키낱말사전 분류의 한글 4글자 표제어 전부 (500개 넘으면 이어받기) */
 async function fetchIdiomCategory() {
   const titles = [];
@@ -78,16 +105,20 @@ const sorted = (set) => [...set].sort((a, b) => a.localeCompare(b, 'ko'));
 
 async function main() {
   console.log('원본 명사 목록 내려받는 중...');
-  const [commonSrc, allSrc, oktSrc, oktWikiSrc, wiktIdioms] = await Promise.all([
-    ...[SRC.common, SRC.all, SRC.okt, SRC.oktWiki].map(fetchText),
+  const [commonSrc, allSrc, oktSrc, oktWikiSrc, nngSrc, coinedSrc, foreignSrc, kaikkiNouns, wiktIdioms] = await Promise.all([
+    ...[SRC.common, SRC.all, SRC.okt, SRC.oktWiki, SRC.mecabNng, SRC.mecabCoined, SRC.mecabForeign].map(fetchText),
+    fetchKaikkiNouns(),
     fetchIdiomCategory(),
   ]);
   const common = parseNounsSource(commonSrc);
   const all = parseNounsSource(allSrc);
   const okt = oktSrc.split(/\r?\n/).map((l) => l.trim());
   const oktWiki = oktWikiSrc.split(/\r?\n/).map((l) => l.trim());
+  // 추측 사전 보강 — 합성어(시곗바늘·생년월일)·신조어(멘탈·여친)·외래어(클라이밍)
+  const extraGuesses = [...mecabSurfaces(nngSrc), ...mecabSurfaces(coinedSrc), ...mecabSurfaces(foreignSrc), ...kaikkiNouns];
 
   const blocklist = new Set(await readCurated('blocklist.txt'));
+  const loanHomographs = await readCurated('loan-homographs.txt');
   const extra3 = await readCurated('answers-3-extra.txt');
   const extra4 = await readCurated('answers-4-extra.txt');
   checkLengths('answers-3-extra.txt', extra3, 3);
@@ -104,6 +135,10 @@ async function main() {
   await writeFile(path.join(DATA_DIR, 'answers-idiom.txt'), sorted(idioms).join('\n') + '\n');
   console.log(`사자성어: 출제 ${idioms.size}개 (직접 ${curatedSet.size}개 + 위키낱말사전 ${wiktIdioms.length}개 중 새로 ${idioms.size - curatedSet.size}개)`);
 
+  // 출제 후보 전체의 원어를 먼저 확보 (캐시에 없는 것만 표준국어대사전 조회)
+  const candidates = LENGTHS.flatMap((len) => [...common.filter((w) => isWordOfLen(w, len)), ...extras[len]]);
+  const origin = await lookupMissing(loadOriginCache(), candidates);
+
   for (const len of LENGTHS) {
     const answers = new Set(
       common
@@ -113,14 +148,17 @@ async function main() {
     );
     for (const w of extras[len]) answers.add(w);
     for (const w of blocklist) answers.delete(w);
+    // 외래어(원어가 전부 외국어)는 출제하지 않는다 — 추측으로는 허용
+    const loans = [...answers].filter((w) => wordType(origin, w) === 'loan' || loanHomographs.includes(w));
+    for (const w of loans) answers.delete(w);
 
-    const guesses = new Set([...common, ...all, ...okt, ...oktWiki].filter((w) => isWordOfLen(w, len)));
+    const guesses = new Set([...common, ...all, ...okt, ...oktWiki, ...extraGuesses].filter((w) => isWordOfLen(w, len)));
     for (const w of answers) guesses.add(w);
     if (len === 4) for (const w of idioms) guesses.add(w);
 
     await writeFile(path.join(DATA_DIR, `answers-${len}.txt`), sorted(answers).join('\n') + '\n');
     await writeFile(path.join(DATA_DIR, `guesses-${len}.txt`), sorted(guesses).join('\n') + '\n');
-    console.log(`${len}글자: 출제 ${answers.size}개 · 추측 허용 ${guesses.size}개`);
+    console.log(`${len}글자: 출제 ${answers.size}개 (외래어 ${loans.length}개 제외) · 추측 허용 ${guesses.size}개`);
   }
   // 합성어 부품: 상용 명사 1~3글자 (블록리스트의 고유명사는 뺀다)
   const parts = new Set(common.filter((w) => /^[가-힣]{1,3}$/.test(w) && !blocklist.has(w)));

@@ -17,3 +17,6 @@ build/
 # 로컬 테스트
 .dev-server*.log
 test-results/
+
+# 로컬 비밀 값 (표준국어대사전 API 키 등)
+.env
