@@ -33,8 +33,8 @@ export const GIMMICKS = {
   // ── 비용 ──
   costly: { id: 'costly', group: '비용', icon: '3️⃣', label: '길이 3 선호', short: '헛방 −2 · 격침 +1',
     help: '2·4글자로 함선 못 맞히면 −2, 함선 맞히면 +1' },
-  checkpoint: { id: 'checkpoint', group: '비용', icon: '🚩', label: '관문', short: '10·20·30번째',
-    help: '10·20·30번째 추측에서 함선 못 맞히면 −5' },
+  checkpoint: { id: 'checkpoint', group: '비용', icon: '🚩', label: '관문', short: '10·20번째',
+    help: '10·20번째 추측에서 함선 못 맞히면 −5' },
   lowStart: { id: 'lowStart', group: '비용', icon: '⏳', label: '보급 부족', short: '시작 −3',
     help: '시작 기회 3번 감소' },
   // ── 제한 (어기면 거절, 횟수는 안 씀) ──
@@ -64,7 +64,7 @@ const EXCLUSIVE = [['wide', 'narrow'], ['wide', 'donut'], ['narrow', 'donut'], [
 /** '잠긴 칸' 기믹이 잠그는 칸 비율 — 8×8에서 11칸, 10×10에서 17칸 */
 export const FOG_RATIO = 1 / 6;
 /** '관문' — 이 번째 추측은 함선을 완성해야 하고, 못 하면 추측이 PENALTY만큼 더 준다 */
-export const CHECKPOINTS = [10, 20, 30];
+export const CHECKPOINTS = [10, 20];
 export const CHECKPOINT_PENALTY = 5;
 /** '보급 부족' — 시작부터 이만큼 쓴 채로 */
 export const START_PENALTY = 3;

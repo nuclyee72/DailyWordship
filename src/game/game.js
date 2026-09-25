@@ -125,7 +125,7 @@ export function boxProblem(puzzle, guesses, box, rules = guessRules(puzzle, gues
 /**
  * n번째 추측 하나가 쓰는 횟수 — { cost, bonus, penalty }, 실제로 줄어드는 수는 cost − bonus + penalty.
  * 보통 cost 1. '길이 3 선호'면 3글자가 아닌 헛방(함선 완성 못 함)은 cost 2, 함선을 완성하면 bonus 1(+1 돌려받음).
- * '관문'이면 10·20·30번째 추측에서 함선을 완성하지 못하면 penalty 5.
+ * '관문'이면 10·20번째 추측에서 함선을 완성하지 못하면 penalty 5.
  */
 export function guessCost(puzzle, len, completedAny, n = 0) {
   const costly = hasGimmick(puzzle, 'costly');

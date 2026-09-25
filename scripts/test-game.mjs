@@ -340,7 +340,7 @@ test('연속 주황 금지 — 주황 칸을 지난 추측 다음엔 주황 칸�
   eq(computeState(p, twice).results.map((x) => x.usedOrange), [false, true]);
 });
 
-test('관문 — 10·20·30번째 추측에 함선을 완성하지 못하면 −5', () => {
+test('관문 — 10·20번째 추측에 함선을 완성하지 못하면 −5', () => {
   const p = withG(['checkpoint']);
   const junk = (n) => Array.from({ length: n }, (_, i) => g(2 + (i % 5), 0, 'h', '아아아'));
   const s = computeState(p, junk(10), { maxGuesses: 40 });
@@ -349,7 +349,8 @@ test('관문 — 10·20·30번째 추측에 함선을 완성하지 못하면 −
   const ok10 = computeState(p, [...junk(9), g(0, 0, 'h', '바다새')], { maxGuesses: 40 });
   eq([ok10.results[9].penalty, ok10.used], [0, 10], '10번째에 완성하면 벌점 없음');
   eq(computeState(p, junk(9), { maxGuesses: 40 }).used, 9, '9번째까지는 벌점 없음');
-  eq(computeState(p, junk(30), { maxGuesses: 99 }).used, 45, '세 관문 모두 실패');
+  eq(computeState(p, junk(20), { maxGuesses: 99 }).used, 30, '두 관문 모두 실패');
+  eq(computeState(p, junk(30), { maxGuesses: 99 }).results[29].penalty, 0, '30번째는 관문 아님');
 });
 
 test('보급 부족 — 시작부터 3번 쓴 상태 (추측 없어도)', () => {

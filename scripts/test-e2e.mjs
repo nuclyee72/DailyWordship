@@ -202,8 +202,9 @@ try {
     await page.waitForTimeout(400); // 닫히는 애니메이션(0.28초)
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-7c-closed.png`) });
     const handle = await page.locator('.element-bookmark-handle').first().boundingBox();
-    const board = await page.locator('.ws-board-wrap').boundingBox();
-    assert('책갈피 손잡이가 판을 가리지 않음', handle.x + handle.width <= board.x);
+    // 모바일은 따로 공간을 떼지 않고 판 카드의 왼쪽 여백·행 번호 줄 위에 겹친다 — 판 칸만 가리지 않으면 된다
+    const board = await page.locator('#ws-board').boundingBox();
+    assert('책갈피 손잡이가 판 칸을 가리지 않음', handle.x + handle.width <= board.x);
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-7-extended.png`) });
     await page.evaluate(() => window.__solve());
     await page.waitForSelector('#daily-result-modal.show', { timeout: 3000 });
