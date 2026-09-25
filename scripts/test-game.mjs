@@ -101,7 +101,7 @@ test('칸별 판정 — 명중·음절·빈칸', () => {
   const s = computeState(P, [g(0, 0, 'h', '바람새')]);
   eq(s.revealed.slice(0, 3), ['바', null, '새']);
   eq(s.hit.slice(0, 3), [true, true, true]);
-  eq(s.results[0], { newCells: [0, 2], newHits: [0, 1, 2], completedShips: [], cost: 1, bonus: 0, penalty: 0, usedOrange: false });
+  eq(s.results[0], { newCells: [0, 2], newHits: [0, 1, 2], completedShips: [], cost: 1, penalty: 0, usedOrange: false });
   eq(s.used, 1);
   const s2 = computeState(P, [g(1, 0, 'h', '아아아')]);
   eq(s2.miss.slice(8, 11), [true, true, true]);
@@ -288,15 +288,14 @@ test('거리 두기 — 직전 추측 칸과 둘레 8칸(대각 포함)은 거�
   ok(!guessRules(P, prev).blocked.some(Boolean), '기믹 없으면 제한 없음');
 });
 
-test('길이 3 선호 — 2·4글자 헛방은 2번, 3글자 헛방은 1번, 함선 완성은 +1 돌려받음, 벌점으로 한도를 넘기면 실패', () => {
+test('길이 3 선호 — 2·4글자 헛방은 2번, 3글자 헛방·함선 완성은 1번 (돌려받기 없음), 벌점으로 한도를 넘기면 실패', () => {
   const p = withG(['costly']);
   const s = computeState(p, [g(0, 0, 'h', '바람새'), g(2, 0, 'h', '아아'), g(0, 7, 'v', '고속도로'), g(4, 0, 'h', '아아아아')], { maxGuesses: 40 });
-  eq(s.results.map((r) => [r.cost, r.bonus]), [[1, 0], [2, 0], [1, 1], [2, 0]]);
-  eq(s.used, 5);
-  // 3글자 완성도 +1
-  eq(computeState(p, [g(0, 0, 'h', '바다새')]).used, 0);
-  // 기믹 없으면 완성해도 보상 없음
-  eq(computeState(P, [g(0, 0, 'h', '바다새')]).used, 1);
+  eq(s.results.map((r) => r.cost), [1, 2, 1, 2]);
+  eq(s.used, 6);
+  // 함선을 완성해도 돌려받지 않는다 — 기믹 없을 때와 같이 1번
+  eq(computeState(p, [g(0, 0, 'h', '바다새')]).used, 1);
+  eq(computeState(p, [g(0, 7, 'v', '고속도로')]).used, 1, '4글자로 완성해도 1번');
   // 39번 쓴 뒤 2글자 헛방 → 41 ≥ 40 → 실패
   const junk = Array.from({ length: 39 }, (_, i) => g(2 + (i % 5), 0, 'h', '아아아'));
   const lost = computeState(p, [...junk, g(7, 0, 'h', '아아')], { maxGuesses: 40 });

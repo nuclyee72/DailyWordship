@@ -31,8 +31,8 @@ export const GIMMICKS = {
   cross: { id: 'cross', group: '정보', icon: '❌', label: '대각선 잠김', short: '초성 가림',
     help: '두 대각선(X자) 칸 초성 가림 (아무 글자 가능 · 추측 시 공개)' },
   // ── 비용 ──
-  costly: { id: 'costly', group: '비용', icon: '3️⃣', label: '길이 3 선호', short: '헛방 −2 · 격침 +1',
-    help: '2·4글자로 함선 못 맞히면 −2, 함선 맞히면 +1' },
+  costly: { id: 'costly', group: '비용', icon: '3️⃣', label: '길이 3 선호', short: '헛방 −2',
+    help: '2·4글자로 함선 못 맞히면 −2' },
   checkpoint: { id: 'checkpoint', group: '비용', icon: '🚩', label: '관문', short: '10·20번째',
     help: '10·20번째 추측에서 함선 못 맞히면 −5' },
   lowStart: { id: 'lowStart', group: '비용', icon: '⏳', label: '보급 부족', short: '시작 −3',

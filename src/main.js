@@ -363,7 +363,7 @@ function renderHistory() {
       word.appendChild(b);
     });
     li.append(num, word, where);
-    // 기믹 벌점·보상 — 길이 3 선호(−2 · +1) · 관문(−5)
+    // 기믹 벌점 — 길이 3 선호(−2) · 관문(−5). 관문 통과는 초록 배지
     const badge = (text, title, bonus = false) => {
       const b = document.createElement('span');
       b.className = bonus ? 'ws-history-cost is-bonus' : 'ws-history-cost';
@@ -372,7 +372,6 @@ function renderHistory() {
       li.appendChild(b);
     };
     if (result?.cost > 1) badge(`−${result.cost}`, `추측 ${result.cost}번 소모 (길이 3 선호)`);
-    if (result?.bonus) badge(`+${result.bonus}`, '함선 완성 — 추측 1번 돌려받음 (길이 3 선호)', true);
     if (result?.penalty) badge(`🚩−${result.penalty}`, `관문 실패 — 추측 ${result.penalty}번 더 줄어듦`);
     else if (result && session.puzzle.gimmicks.includes('checkpoint') && CHECKPOINTS.includes(n + 1)) badge('🚩', '관문 통과', true);
     li.addEventListener('click', () => renderer.flash(g));

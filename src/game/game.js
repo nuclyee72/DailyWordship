@@ -123,15 +123,15 @@ export function boxProblem(puzzle, guesses, box, rules = guessRules(puzzle, gues
 }
 
 /**
- * n번째 추측 하나가 쓰는 횟수 — { cost, bonus, penalty }, 실제로 줄어드는 수는 cost − bonus + penalty.
- * 보통 cost 1. '길이 3 선호'면 3글자가 아닌 헛방(함선 완성 못 함)은 cost 2, 함선을 완성하면 bonus 1(+1 돌려받음).
+ * n번째 추측 하나가 쓰는 횟수 — { cost, penalty }, 실제로 줄어드는 수는 cost + penalty.
+ * 보통 cost 1. '길이 3 선호'면 3글자가 아닌 헛방(함선 완성 못 함)은 cost 2 (함선을 완성하면 길이 무관 1).
  * '관문'이면 10·20번째 추측에서 함선을 완성하지 못하면 penalty 5.
  */
 export function guessCost(puzzle, len, completedAny, n = 0) {
   const costly = hasGimmick(puzzle, 'costly');
   const penalty = hasGimmick(puzzle, 'checkpoint') && CHECKPOINTS.includes(n) && !completedAny ? CHECKPOINT_PENALTY : 0;
-  if (completedAny) return { cost: 1, bonus: costly ? 1 : 0, penalty };
-  return { cost: costly && len !== 3 ? 2 : 1, bonus: 0, penalty };
+  if (completedAny) return { cost: 1, penalty };
+  return { cost: costly && len !== 3 ? 2 : 1, penalty };
 }
 
 /**
@@ -173,9 +173,9 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
  *   hit: boolean[],              함선 칸으로 확인됨 (음절 공개 칸 포함)
  *   miss: boolean[],             빈 칸으로 확인됨
  *   completed: boolean[],        함선별 완성 여부
- *   results: { newCells, newHits, completedShips: number[], cost, bonus, penalty: number, usedOrange: boolean }[],
+ *   results: { newCells, newHits, completedShips: number[], cost, penalty: number, usedOrange: boolean }[],
  *                                추측마다 새로 얻은 것 · 쓴 횟수 · 주황 칸을 지나갔는지('연속 주황 금지')
- *   used: number,                쓴 추측 수 (벌점·돌려받은 수 반영) — 한도와 비교하는 값
+ *   used: number,                쓴 추측 수 (벌점 반영) — 한도와 비교하는 값
  *   status: 'playing'|'won'|'lost',
  * }}
  */
@@ -219,9 +219,9 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
       completed[s] = true;
       completedShips.push(s);
     });
-    const { cost, bonus, penalty } = guessCost(puzzle, g.len, completedShips.length > 0, results.length + 1);
-    used += cost - bonus + penalty;
-    results.push({ newCells, newHits, completedShips, cost, bonus, penalty, usedOrange: orangeBefore.length > 0 });
+    const { cost, penalty } = guessCost(puzzle, g.len, completedShips.length > 0, results.length + 1);
+    used += cost + penalty;
+    results.push({ newCells, newHits, completedShips, cost, penalty, usedOrange: orangeBefore.length > 0 });
     if (completed.every(Boolean)) status = 'won';
     else if (used >= maxGuesses) status = 'lost';
   }

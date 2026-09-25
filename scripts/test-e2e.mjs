@@ -173,8 +173,8 @@ try {
     assert('함선 완성 → 기록에 초록 줄', await page.locator('.ws-history-item.is-sunk').count() === 1
       && await page.locator('.ws-history-item.is-sunk .ws-chip--done').count() === s0.len);
     if (ext.gimmicks.includes('costly')) {
-      assert('비싼 추측 — 완성하면 +1 (남은 추측 그대로)', (await page.textContent('#ws-guesses-left')) === String(MODES.extended.maxGuesses)
-        && (await page.textContent('.ws-history-cost')) === '+1');
+      assert('길이 3 선호 — 완성하면 1번만 씀 (돌려받기·배지 없음)', (await page.textContent('#ws-guesses-left')) === String(MODES.extended.maxGuesses - 1)
+        && (await page.locator('.ws-history-cost').count()) === 0);
     }
     const unlocked = s0cells.filter((i) => ext.locked.includes(i)).length;
     assert(`추측에 포함된 잠긴 칸 ${unlocked}개는 풀림`, await page.locator('.ws-tile.is-hidden').count() === ext.locked.length - unlocked);

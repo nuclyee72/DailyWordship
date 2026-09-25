@@ -1,6 +1,7 @@
 # 데일리 워드십 — 기획서 v1.0 (솔로 데일리 퍼즐)
 
 > 이전 버전(실시간 2인 대전, 행동 4종, 8×20 보드)은 [archive/GDD-v0.9-multiplayer.md](archive/GDD-v0.9-multiplayer.md)에 보관.
+> v1.11: 관문은 10·20번째에만(30번째 삭제). '길이 3 선호'에서 함선 완성 시 +1 돌려받기 삭제 — 헛방 −2만 남음. 밸런스 표 갱신.
 > v1.10: 익스텐디드 추측 한도 40 → 35. 기믹 안내를 책갈피로(스도쿠 익스텐디드와 같은 방식), 기믹 문구를 명사형 한 틀로 간략화. 기믹 '보급 부족'(시작 −3) 추가 — 19종.
 > v1.9: 익스텐디드 기믹 18종 — 암초를 '회색 칸 금지'로 바꿈, 비싼 추측 → '길이 3 선호', 연속 주황 금지 · 좁은 바다 7×7 · 도넛 바다 12×12 · 회색 칸 필수 · 관문 추가. 함께 못 나오는 짝 4개.
 > v1.8: 익스텐디드 기믹 13종 — 암초 · 증원(4·3·2칸) · 방향 바꾸기 · 첫/끝 칸 십자 추가, 비싼 추측에 격침 +1. 함선을 완성한 추측은 기록에 초록 줄.
@@ -169,7 +170,7 @@ https://nuclyee72.github.io/DailyWordship/
 | 함대 | `extra4` · `extra3` · `extra2` | 🚢 ⛴️ 🚤 증원 | 4·3·2칸 함선 +1척 (증원끼리 겹치면 8척) |
 | 정보 | `fog` | 🔒 잠긴 칸 | 판 칸의 1/6이 **초성까지 가려진다**(0단계 정보 — 초성이 1단계, 음절이 2단계). 그 자리엔 **아무 초성의 글자나** 넣을 수 있고, 추측에 한 번 포함되면 초성이 드러난다 |
 | 정보 | `cross` | ❌ 대각선 잠김 | 판의 **두 대각선(X자)** 칸이 잠긴 칸. `fog`와 겹치면 `fog`는 대각선 밖에서 뽑는다 |
-| 비용 | `costly` | 3️⃣ 길이 3 선호 | 2·4글자로 추측해 **함선을 완성하지 못하면 −2**. **함선을 완성하면(길이 무관) +1** 돌려받는다 |
+| 비용 | `costly` | 3️⃣ 길이 3 선호 | 2·4글자로 추측해 **함선을 완성하지 못하면 −2**. 함선을 완성하면 길이와 상관없이 보통처럼 1번 (돌려받기 없음) |
 | 비용 | `checkpoint` | 🚩 관문 | **10 · 20번째 추측**은 함선을 완성해야 한다. 못 하면 그때마다 **−5** (번째는 추측 개수 기준, 벌점과 무관) |
 | 비용 | `lowStart` | ⏳ 보급 부족 | **시작부터 3번 쓴 상태** — 한도 35면 32번으로 시작 |
 | 제한 | `alternate` | 🔀 길이 바꾸기 | 직전 추측과 **같은 길이** 금지 |
@@ -197,34 +198,34 @@ https://nuclyee72.github.io/DailyWordship/
 같은 조합이 이틀 연속 나오지 않게, 바퀴가 바뀌는 날 전 바퀴 마지막 날과 같으면 둘째 날 것과 맞바꾼다. 자유 연습은 아무 조합이나.
 기믹 수가 바뀌면 순서도 통째로 바뀐다 — 이미 만든 날짜의 파일은 그대로 두고(그 파일에 기믹이 적혀 있다) 새 날짜부터 새 순서를 쓴다(09-23~28은 13·18종 시절 순서).
 
-### 10.3 밸런스 (봇 100판 × 167조합, 한도 35, 추측 수는 벌점·보상 반영)
+### 10.3 밸런스 (봇 100판 × 167조합, 한도 35, 추측 수는 벌점 반영)
 
 봇(§5.3)에 기믹을 가르쳤다 — 막힌 박스는 고르지 않고, 잠긴 칸은 아무 초성으로 보고, 쓸 자리가 없으면 아무 데나 버리는 추측을 한다. 벌점은 피하지 않는다. `node scripts/simulate.mjs 100 extended`.
 
 | 기믹 | 들어간 조합 평균 중앙 | 평균 35회 안 | 가장 어려운 짝 |
 |---|---|---|---|
-| wide | 27.6 | 87% | wide+checkpoint 68% |
-| narrow | 19.4 | 100% | narrow+lineStart 97% |
-| **donut** | **31.9** | **68%** | donut+gray3 **41%** |
-| extra4 | 22.8 | 97% | donut+extra4 73% |
-| extra3 | 23.7 | 97% | donut+extra3 79% |
-| extra2 | 25.6 | 94% | donut+extra2 61% |
-| fog | 22.6 | 98% | donut+fog 78% |
-| cross | 23.0 | 98% | donut+cross 86% |
-| costly | 24.7 | 87% | costly+lineEnd 58% |
-| checkpoint | 28.0 | 82% | donut+checkpoint 42% |
-| lowStart | 25.1 | 95% | donut+lowStart 63% |
-| alternate | 26.8 | 89% | donut+alternate 53% |
-| turn | 23.5 | 96% | donut+turn 76% |
-| apart | 24.6 | 96% | donut+apart 78% |
-| lineStart | 27.3 | 89% | donut+lineStart 66% |
-| lineEnd | 27.5 | 87% | costly+lineEnd 58% |
-| noOrange | 23.1 | 97% | donut+noOrange 79% |
-| noMiss | 21.8 | 98% | donut+noMiss 82% |
-| gray3 | 29.4 | 83% | donut+gray3 41% |
+| wide | 28.4 | 85% | wide+costly 56% |
+| narrow | 19.8 | 100% | narrow+lineStart 98% |
+| **donut** | **32.4** | **66%** | donut+checkpoint 34% |
+| extra4 | 23.3 | 97% | donut+extra4 77% |
+| extra3 | 24.2 | 96% | donut+extra3 76% |
+| extra2 | 25.9 | 94% | donut+extra2 66% |
+| fog | 23.0 | 97% | fog+costly 76% |
+| cross | 23.6 | 97% | donut+cross 79% |
+| costly | 30.6 | 73% | donut+costly 36% |
+| checkpoint | 28.3 | 83% | donut+checkpoint 34% |
+| lowStart | 25.3 | 94% | donut+lowStart 66% |
+| alternate | 27.0 | 87% | donut+alternate 55% |
+| turn | 23.8 | 96% | donut+turn 73% |
+| apart | 24.8 | 94% | donut+apart 72% |
+| lineStart | 27.7 | 87% | costly+lineStart 55% |
+| lineEnd | 27.4 | 88% | costly+lineEnd 52% |
+| noOrange | 23.2 | 97% | donut+noOrange 84% |
+| noMiss | 22.4 | 97% | donut+noMiss 76% |
+| gray3 | 29.9 | 82% | donut+gray3 37% |
 
-167조합 평균 35회 안 92%(한도 40·149조합일 때 97%), 90% 미만 105개.
-가장 어려운 짝: donut+gray3 41% · donut+checkpoint 42% · donut+alternate 53% · checkpoint+gray3 57% · costly+lineEnd 58%.
+167조합 평균 35회 안 90%(한도 40·149조합일 때 97%), 90% 미만 52개 (2026-09-25 — 관문 10·20번째, 길이 3 선호 격침 +1 삭제 뒤).
+가장 어려운 짝: donut+checkpoint 34% · donut+costly 36% · donut+gray3 37% · costly+gray3 44% · costly+lineEnd 52%.
 도넛 바다는 128칸에 함대 17칸이라 찾을 곳이 넓고, 좁은 바다는 반대로 가장 쉽다(중앙 19).
 (스탠다드 봇: 중앙 20 · 30회 안 100%.) 잠긴 칸은 봇에게 오히려 쉽다 — 어휘를 전부 알아 가려진 자리를 넓은 선택지로 쓴다. 사람에게는 정보가 준다. 실사용을 보고 조정한다.
 
