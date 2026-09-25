@@ -8,11 +8,18 @@ import { computeState, validateGuess, shipMap, cellOutcomes, parsePuzzle, guessR
 import { MODES, modeOf } from './game/modes.js';
 import { GIMMICKS, gimmickLine, randomGimmicks, CHECKPOINTS, GRAY_EVERY } from './game/gimmicks.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
-import { initHub, leaveToHub, saveDarkMode } from './hub.js';
+import { initHub, leaveToHub, goHub, saveDarkMode } from './hub.js';
 
 const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
 const DAILY_FIRST_DATE = '2026-09-23'; // 아카이브에서 고를 수 있는 가장 이른 날짜
 const TODAY = () => dateStrKST();
+// 배포 주소에선 메인 화면 = 허브 카드 (index.html <head>가 표시) — 게임 자체 랜딩은 로컬 개발에서만
+const HUB_ONLY = document.documentElement.dataset.hubOnly === '1';
+/** '메인 화면'으로 — 배포 주소면 언제나 허브, 로컬이면 허브에서 온 탭만 허브(아니면 게임 랜딩) */
+function backToMain() {
+  if (HUB_ONLY) goHub();
+  else if (!leaveToHub()) showLanding();
+}
 
 // ── DOM ──
 const $ = (id) => document.getElementById(id);
@@ -613,19 +620,19 @@ async function startFreePlay(modeId, pickedGimmicks = null) {
   } catch (err) {
     dailyErrorEl.textContent = '자유 연습 퍼즐을 만들지 못했어요.';
     console.error(err);
-    showLanding();
+    backToMain();
   }
 }
 btnFreePlay.addEventListener('click', () => openPanel(freeplayModeModal));
-// 모드 고르기를 취소하면 랜딩으로 — 허브에서 들어왔으면 메인 화면 = 허브
-const cancelFreePlayModeModal = () => { if (!leaveToHub()) closePanel(freeplayModeModal); };
+// 모드 고르기를 취소하면 메인 화면으로 — 배포 주소·허브에서 온 탭이면 허브
+const cancelFreePlayModeModal = () => { if (HUB_ONLY) goHub(); else if (!leaveToHub()) closePanel(freeplayModeModal); };
 btnFreeplayModeCancel.addEventListener('click', cancelFreePlayModeModal);
 freeplayModeModal.addEventListener('click', (e) => { if (e.target === freeplayModeModal) cancelFreePlayModeModal(); });
 freeplayModeModal.querySelectorAll('.daily-card').forEach((btn) => {
   btn.addEventListener('click', () => { closePanel(freeplayModeModal); startFreePlay(btn.dataset.mode); });
 });
 
-btnGoLanding.addEventListener('click', () => leaveToHub() || showLanding()); // 허브에서 들어왔으면 메인 화면 = 허브
+btnGoLanding.addEventListener('click', backToMain);
 
 // ── 달력 (통계 · 지난 퍼즐 공용) ──
 function makeCalendar({ gridEl, titleEl, prevEl, nextEl, pick = false, onPick = null }) {
@@ -870,8 +877,8 @@ loadGuessDict().catch((err) => console.error(err));
 
 // ── 허브의 지난 퍼즐 달력에서 고른 날짜로 바로 시작 (?archive=YYYY-MM-DD&mode=standard|extended|idiom) ──
 function playArchiveFromHub(date, mode) {
+  if (!Object.hasOwn(MODES, mode) || date < DAILY_FIRST_DATE || date >= TODAY()) { backToMain(); return; }
   btnArchive.click();
-  if (!Object.hasOwn(MODES, mode) || date < DAILY_FIRST_DATE || date >= TODAY()) return;
   archiveMode = mode;
   archiveSelected = date;
   paintArchiveCal(true); // 모드 토글 active도 여기서 맞춘다

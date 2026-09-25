@@ -12,6 +12,15 @@
   <link rel="manifest" href="manifest.webmanifest"/>
   <link rel="stylesheet" href="style.css"/>
   <script>
+    // 메인 화면은 허브 카드(/ProjectDaily/#wordship) 하나 — 배포 주소(/ProjectDaily/DailyWordship/, 예전 /DailyWordship/)로
+    // 허브를 거치지 않고(?open · ?archive · ?free 없이) 들어오면 그리기 전에 바로 허브로 보낸다.
+    // 게임 자체 랜딩은 로컬 개발(npm run dev — 주소가 /)에서만 쓴다.
+    try {
+      if (/\/DailyWordship\/(index\.html)?$/.test(location.pathname)) {
+        document.documentElement.dataset.hubOnly = '1';
+        if (!/[?&](open|archive|free)=/.test(location.search)) location.replace('/ProjectDaily/#wordship');
+      }
+    } catch {}
     // body가 그려지기 전에 먼저 적용해서 라이트 테마가 잠깐 번쩍이는 걸 막는다
     try {
       if (localStorage.getItem('wordship-dark-mode') === '1') {
