@@ -8,6 +8,7 @@ import { computeState, validateGuess, shipMap, cellOutcomes, parsePuzzle, guessR
 import { MODES, modeOf } from './game/modes.js';
 import { GIMMICKS, gimmickLine, randomGimmicks, CHECKPOINTS, GRAY_EVERY } from './game/gimmicks.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
+import { playEasterEgg } from './ui/easterEgg.js';
 import { initHub, leaveToHub, goHub, saveDarkMode } from './hub.js';
 
 const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
@@ -486,6 +487,7 @@ guessForm.addEventListener('submit', async (e) => {
       return;
     }
     session.guesses.push({ r: selection.r, c: selection.c, dir: selection.dir, len: selection.len, word: v.word });
+    playEasterEgg(v.word);
     wordInput.value = '';
     renderer.setSelection(null, { silent: true });
     selection = null;

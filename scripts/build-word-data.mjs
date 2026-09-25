@@ -135,7 +135,8 @@ async function main() {
   const okt = oktSrc.split(/\r?\n/).map((l) => l.trim());
   const oktWiki = oktWikiSrc.split(/\r?\n/).map((l) => l.trim());
   // 추측 사전 보강 — 합성어(시곗바늘·생년월일)·신조어(멘탈·여친)·외래어(클라이밍)
-  const extraGuesses = [...mecabSurfaces(nngSrc), ...mecabSurfaces(coinedSrc), ...mecabSurfaces(foreignSrc), ...kaikkiNouns];
+  // + curated/guesses-extra.txt — 원본에 없지만 받아 줄 말 (이스터에그 등)
+  const extraGuesses = [...mecabSurfaces(nngSrc), ...mecabSurfaces(coinedSrc), ...mecabSurfaces(foreignSrc), ...kaikkiNouns, ...await readCurated('guesses-extra.txt')];
 
   const blocklist = new Set(await readCurated('blocklist.txt'));
   const loanHomographs = await readCurated('loan-homographs.txt');

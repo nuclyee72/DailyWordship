@@ -263,6 +263,37 @@ try {
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-6-dark.png`) });
     await context.close();
   }
+
+  // 이스터에그 — 오늘 퍼즐의 빈 바다 가로 3칸을 ㅁㄹㄹ로 바꿔 넣고 '메루루' 추측 → 오른쪽 아래 캐릭터가 떴다가 사라짐
+  {
+    const geo = boardOf(8);
+    const shipCells = new Set(puzzle.ships.flatMap((s) => geo.boxCells(s)));
+    const box = geo.allBoxes(3).find((b) => b.dir === 'h' && geo.boxCells(b).every((i) => !shipCells.has(i)));
+    const onsets = [...puzzle.onsets];
+    geo.boxCells(box).forEach((i, n) => { onsets[i] = 'ㅁㄹㄹ'[n]; });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.route(`**/daily/${today}.json`, (route) => route.fulfill({ json: { ...puzzle, onsets: onsets.join('') } }));
+    const page = await context.newPage();
+    page.on('pageerror', (err) => consoleErrors.push(`pageerror: ${err.message}`));
+    await page.goto(`${base}/index.html`);
+    await page.click('#game-help-close');
+    await page.click('#btn-daily-play');
+    await page.waitForSelector('.ws-cell');
+    await dragBox(page, box);
+    await page.fill('#ws-word-input', '메루루');
+    await page.press('#ws-word-input', 'Enter');
+    await page.waitForSelector('.easter-egg', { timeout: 15000 });
+    assert('메루루 — 사전에 있는 단어로 받아 줌 (추측 1번 씀)', (await page.textContent('#ws-guesses-left')) === String(MAX_GUESSES - 1));
+    await page.waitForFunction(() => { const e = document.querySelector('.easter-egg'); return e && e.complete && e.naturalWidth > 0; });
+    await page.waitForTimeout(700); // 첫 점프 꼭대기 근처
+    const r = await page.locator('.easter-egg').boundingBox();
+    assert(`메루루 — 오른쪽 아래에서 떠오름 (${Math.round(r.x + r.width)}, ${Math.round(r.y + r.height)})`, r.x + r.width <= 390 && r.x > 390 / 2 && r.y + r.height > 844 * 0.8);
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, 'phone-10-easter-egg.png') });
+    await page.waitForSelector('.easter-egg', { state: 'detached', timeout: 5000 });
+    assert('메루루 — 애니메이션 끝나면 사라짐', await page.locator('.easter-egg').count() === 0);
+    await context.close();
+  }
+
   assert(`콘솔 에러 없음 (${consoleErrors.length}개)`, consoleErrors.length === 0);
   if (consoleErrors.length) console.log(consoleErrors.join('\n'));
 } finally {

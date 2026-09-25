@@ -1032,3 +1032,39 @@ html, body {
     padding-left: 48px;
   }
 }
+
+/* ── 이스터에그 (src/ui/easterEgg.js) — 오른쪽 아래에서 뛰어올랐다 통통 튀고 다시 내려간다 ── */
+.easter-egg {
+  position: fixed;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: 0;
+  height: min(220px, 32vh);
+  width: auto;
+  z-index: 3000;
+  pointer-events: none;
+  transform: translateY(110%);
+  transform-origin: 50% 100%; /* 착지할 때 발밑 기준으로 눌린다 */
+  filter: drop-shadow(0 8px 16px rgba(20, 24, 40, 0.25));
+  animation: easter-egg-jump 3s both;
+}
+/* 구간마다 timing-function을 따로 — 올라갈 땐 감속(ease-out), 떨어질 땐 가속(ease-in)이라 점프처럼 보인다 */
+@keyframes easter-egg-jump {
+  0%   { transform: translateY(110%); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  22%  { transform: translateY(-14%); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
+  34%  { transform: translateY(0) scale(1.04, 0.96); animation-timing-function: ease-out; }
+  40%  { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  52%  { transform: translateY(-7%); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
+  62%  { transform: translateY(0) scale(1.02, 0.98); animation-timing-function: ease-out; }
+  68%  { transform: translateY(0) scale(1); }
+  80%  { transform: translateY(0); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  86%  { transform: translateY(-6%); animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5); }
+  100% { transform: translateY(110%); }
+}
+/* 움직임 줄이기 설정이면 튀지 않고 잠깐 나타났다 사라지기만 */
+@media (prefers-reduced-motion: reduce) {
+  .easter-egg { animation-name: easter-egg-fade; animation-duration: 2.4s; }
+  @keyframes easter-egg-fade {
+    0%, 100% { transform: translateY(0); opacity: 0; }
+    15%, 80% { transform: translateY(0); opacity: 1; }
+  }
+}

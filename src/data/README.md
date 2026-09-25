@@ -11,6 +11,7 @@
 | `compound-parts.txt` | **합성어 규칙 부품** — 상용 명사 1~3글자. 부품+부품인 3~4글자도 추측 허용 | 3,120 |
 | `curated/answers-3-extra.txt` | 3글자 출제 풀 보강 (손으로 고름) | |
 | `curated/answers-4-extra.txt` | 4글자 출제 풀 보강 (손으로 고름) | |
+| `curated/guesses-extra.txt` | 추측 사전에만 넣을 단어 — 원본 사전에 없는 말 (이스터에그 `메루루` 등) | |
 | `curated/blocklist.txt` | 출제 풀에서 뺄 단어 — 고유명사·부사류 (추측은 허용) | |
 | `curated/loan-homographs.txt` | 출제 풀에서 뺄 외래어 중 한국어 동음이의어도 있어 자동 판별이 안 되는 것 (소파·파일·피시) | |
 | `../../scripts/data/word-origin.json` | 출제 후보의 표준국어대사전 원어 캐시 — 외래어 판별용 | |
