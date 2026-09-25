@@ -1,11 +1,12 @@
 import { dateStrKST, shiftDateStr, msUntilNextReset, formatCountdown } from './daily/dateUtil.js';
-import { loadProgress, saveProgress, recordResult, summarize, DIST_BUCKETS } from './daily/storage.js';
+import { loadProgress, saveProgress, recordResult, summarize, distBuckets } from './daily/storage.js';
 import { buildShareText, buildFleetGrid, buildSummaryLine, buildCalendarShareText } from './daily/share.js';
 import { buildAnswerPool, buildGuessDictionary, fetchWordTexts } from './core/dictionary.js';
 import { onsetOf } from './core/hangul.js';
-import { boxCells, boxLabel, SIZE } from './game/board.js';
-import { computeState, validateGuess, shipMap, cellOutcomes } from './game/game.js';
+import { geoOf, DIR_ARROW } from './game/board.js';
+import { computeState, validateGuess, shipMap, cellOutcomes, parsePuzzle, guessRules, boxProblem } from './game/game.js';
 import { MODES, modeOf } from './game/modes.js';
+import { GIMMICKS, gimmickLine, randomGimmicks, CHECKPOINTS, GRAY_EVERY } from './game/gimmicks.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
 import { initHub, leaveToHub, saveDarkMode } from './hub.js';
 
@@ -21,11 +22,12 @@ const landingMain     = $('landing-main');
 const landingArchive  = $('landing-archive');
 const landingCard     = document.querySelector('.landing-card');
 const landingDate     = $('landing-date');
-const dailyCardStatus = { standard: $('daily-card-status'), idiom: $('daily-card-status-idiom') };
+const dailyCardStatus = { standard: $('daily-card-status'), extended: $('daily-card-status-extended'), idiom: $('daily-card-status-idiom') };
+const extendedCardDesc = $('daily-card-desc-extended');
 const dailyLoadNote   = $('daily-load-note');
 const dailyErrorEl    = $('daily-error');
 
-const btnDailyPlay    = { standard: $('btn-daily-play'), idiom: $('btn-daily-play-idiom') };
+const btnDailyPlay    = { standard: $('btn-daily-play'), extended: $('btn-daily-play-extended'), idiom: $('btn-daily-play-idiom') };
 const btnFreePlay     = $('btn-free-play');
 const freeplayModeModal = $('freeplay-mode-modal');
 const btnFreeplayModeCancel = $('btn-freeplay-mode-cancel');
@@ -43,6 +45,7 @@ const btnNewFree      = $('btn-new-free');
 const boardEl     = $('ws-board');
 const fleetEl     = $('ws-fleet');
 const modeLabelEl = $('ws-mode-label');
+const gimmicksEl  = $('ws-gimmicks');
 const guessesLeftEl = $('ws-guesses-left');
 const guessesMaxEl  = $('ws-guesses-max');
 const guessForm   = $('ws-guess-form');
@@ -122,22 +125,23 @@ const loadGuessDict = () => {
   });
   return guessDictPromise;
 };
-// 모드별 출제 풀 — 스탠다드는 answers-{2,3,4}.txt, 사자성어는 answers-idiom.txt
+// 모드별 출제 풀 — 스탠다드·익스텐디드는 answers-{2,3,4}.txt, 사자성어는 answers-idiom.txt
 const answerPoolPromises = new Map();
 const loadAnswerPool = (mode) => {
-  if (!answerPoolPromises.has(mode.id)) {
+  const key = mode.answersFile ?? 'answers';
+  if (!answerPoolPromises.has(key)) {
     const texts = mode.answersFile
       ? fetch(`src/data/${mode.answersFile}`).then((res) => {
         if (!res.ok) throw new Error(`${mode.answersFile} 불러오기 실패 (${res.status})`);
         return res.text();
       }).then((text) => ({ 4: text }))
       : fetchWordTexts('answers');
-    answerPoolPromises.set(mode.id, texts.then(buildAnswerPool).catch((err) => {
-      answerPoolPromises.delete(mode.id);
+    answerPoolPromises.set(key, texts.then(buildAnswerPool).catch((err) => {
+      answerPoolPromises.delete(key);
       throw err;
     }));
   }
-  return answerPoolPromises.get(mode.id);
+  return answerPoolPromises.get(key);
 };
 
 // ── 데일리 퍼즐 로딩(캐시) ──
@@ -147,29 +151,29 @@ async function loadDailyPuzzle(date, mode) {
   if (puzzleCache.has(file)) return puzzleCache.get(file);
   const res = await fetch(`daily/${file}.json`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`${file} 퍼즐을 찾을 수 없음`);
-  const data = await res.json();
-  const puzzle = { onsets: [...data.onsets], ships: data.ships };
+  const puzzle = parsePuzzle(await res.json());
   puzzleCache.set(file, puzzle);
   return puzzle;
 }
 
 // ── 게임 세션 ──
-/** @type {{ kind: 'daily'|'archive'|'free', date: string, puzzle: object, guesses: object[], map: object[] } | null} */
+/** @type {{ kind: 'daily'|'archive'|'free', date: string, puzzle: object, guesses: object[], map: object[], geo: object } | null} */
 let session = null;
 let state = null;
+let rules = null; // guessRules — 잠긴 칸 · 못 쓰는 칸 · 못 쓰는 길이 (익스텐디드 기믹)
 let selection = null;
 let viewingAnswer = false;
 let resultShown = false;
 
 const renderer = new BoardRenderer(boardEl, { onSelect: handleSelect });
 
-// 보드 가장자리 좌표 라벨 (a~h, 1~8)
-document.querySelector('.ws-col-labels').append(...Array.from({ length: SIZE }, (_, c) => {
-  const s = document.createElement('span'); s.textContent = String.fromCharCode(97 + c); return s;
-}));
-document.querySelector('.ws-row-labels').append(...Array.from({ length: SIZE }, (_, r) => {
-  const s = document.createElement('span'); s.textContent = String(r + 1); return s;
-}));
+// 보드 가장자리 좌표 라벨 (8×8이면 a~h · 1~8, 10×10이면 a~j · 1~10)
+function renderCoordLabels(size) {
+  const label = (text) => { const s = document.createElement('span'); s.textContent = text; return s; };
+  document.querySelector('.ws-col-labels').replaceChildren(...Array.from({ length: size }, (_, c) => label(String.fromCharCode(97 + c))));
+  document.querySelector('.ws-row-labels').replaceChildren(...Array.from({ length: size }, (_, r) => label(String(r + 1))));
+}
+renderCoordLabels(8);
 
 /** 공유 제목 — '데일리 워드십 · 2026-09-24', '데일리 워드십 · 사자성어 · 2026-09-24', '데일리 워드십 · 사자성어 · 자유 연습' */
 function titleFor(mode, dateOrLabel) {
@@ -185,16 +189,19 @@ function persist() {
     date: session.date,
     onsets: session.puzzle.onsets.join(''),
     guesses: session.guesses,
+    used: state.used,
     status: state.status === 'won' ? 'solved' : state.status === 'lost' ? 'failed' : 'playing',
   }, session.mode.id);
 }
 
 /** @param {{ kind, date, mode: string, puzzle, guesses }} newSession */
 function openGame(newSession) {
-  session = { ...newSession, mode: modeOf(newSession.mode), map: shipMap(newSession.puzzle) };
+  session = { ...newSession, mode: modeOf(newSession.mode), map: shipMap(newSession.puzzle), geo: geoOf(newSession.puzzle) };
   resultShown = false;
   viewingAnswer = false;
   selection = null;
+  renderer.setSize(session.geo.size);
+  renderCoordLabels(session.geo.size);
   renderer.setSelection(null, { silent: true });
   wordInput.value = '';
   setMessage('');
@@ -207,9 +214,10 @@ function openGame(newSession) {
 function renderGame() {
   const { maxGuesses } = session.mode;
   state = computeState(session.puzzle, session.guesses, { maxGuesses });
+  rules = guessRules(session.puzzle, session.guesses);
   const playing = state.status === 'playing';
   const doneShips = session.puzzle.ships.filter((_, s) => state.completed[s]);
-  const doneCells = new Set(doneShips.flatMap((s) => boxCells(s)));
+  const doneCells = new Set(doneShips.flatMap((s) => session.geo.boxCells(s)));
   renderer.render({
     onsets: session.puzzle.onsets,
     revealed: state.revealed,
@@ -219,15 +227,21 @@ function renderGame() {
     doneShips,
     answerShips: viewingAnswer ? session.puzzle.ships.filter((_, s) => !state.completed[s]) : [],
     interactive: playing,
+    // 판이 끝나면 잠긴 칸도 걷히고, 못 쓰는 칸 빗금도 지운다
+    hidden: playing ? rules.hidden : null,
+    blocked: playing ? rules.blocked : null,
+    holes: rules.holes,
   });
 
-  guessesLeftEl.textContent = String(maxGuesses - state.results.length);
+  const left = Math.max(0, maxGuesses - state.used);
+  guessesLeftEl.textContent = String(left);
   guessesMaxEl.textContent = `/ ${maxGuesses}`;
-  guessesLeftEl.parentElement.classList.toggle('is-low', playing && maxGuesses - state.results.length <= 3);
+  guessesLeftEl.parentElement.classList.toggle('is-low', playing && left <= 3);
   const where = session.kind === 'free' ? '자유 연습' : session.kind === 'archive' ? `${session.date} · 지난 퍼즐` : session.date;
   modeLabelEl.textContent = `${session.mode.label} · ${where}`;
 
   renderFleet();
+  renderGimmicks();
   renderHistory();
   renderSlots();
 
@@ -265,6 +279,54 @@ function renderFleet() {
   }));
 }
 
+/** 익스텐디드 — 그날의 기믹 칩. 누르면 설명이 입력칸 아래에 뜬다 */
+function renderGimmicks() {
+  const ids = session.puzzle.gimmicks;
+  gimmicksEl.hidden = !ids.length;
+  const playing = state.status === 'playing';
+  const hiddenLeft = rules.hidden.filter(Boolean).length;
+  const next = session.guesses.length + 1; // 이번 추측이 몇 번째인지
+  const lastResult = state.results[state.results.length - 1];
+  gimmicksEl.replaceChildren(...ids.map((id) => {
+    const g = GIMMICKS[id];
+    let detail = g.short;
+    if (playing && id === 'alternate' && rules.banLen) detail = `이번엔 ${rules.banLen}글자 ✕`;
+    if (playing && id === 'turn' && rules.banDir) detail = `이번엔 ${DIR_ARROW[rules.banDir]} ✕`;
+    if (playing && (id === 'fog' || id === 'cross')) detail = `잠긴 칸 ${hiddenLeft}`;
+    if (playing && id === 'noOrange' && lastResult?.usedOrange) detail = '이번엔 주황 ✕';
+    if (playing && id === 'gray3') {
+      const k = GRAY_EVERY - ((next - 1) % GRAY_EVERY) - 1; // 회색 필수까지 남은 추측
+      detail = rules.mustGray ? '이번 추측 회색 필수' : k ? `${k}번 뒤 회색 필수` : '이번 추측 회색 필수 (아직 회색 없음)';
+    }
+    if (playing && id === 'checkpoint') {
+      const cp = CHECKPOINTS.find((c) => c >= next);
+      detail = !cp ? '관문 끝' : cp === next ? '이번 추측 격침 필수' : `${cp}번째 격침 필수 (${cp - next}번 뒤)`;
+    }
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'ws-gimmick';
+    chip.dataset.gimmick = id;
+    chip.title = g.help;
+    const icon = document.createElement('span');
+    icon.className = 'ws-gimmick-icon';
+    icon.textContent = g.icon;
+    const name = document.createElement('b');
+    name.textContent = g.label;
+    const small = document.createElement('small');
+    small.textContent = detail;
+    chip.append(icon, name, small);
+    chip.addEventListener('click', () => setMessage(`${g.icon} ${g.help}`));
+    return chip;
+  }));
+  // 기믹끼리 겹쳐 둘 곳이 없으면 이번 한 번은 제약이 풀린다 (game.js guessRules)
+  if (playing && rules.relaxed) {
+    const note = document.createElement('span');
+    note.className = 'ws-gimmick-relaxed';
+    note.textContent = '둘 곳이 없어 이번 추측은 제약 해제';
+    gimmicksEl.appendChild(note);
+  }
+}
+
 function renderHistory() {
   historyEl.replaceChildren(...session.guesses.map((g, n) => {
     const li = document.createElement('li');
@@ -274,17 +336,33 @@ function renderHistory() {
     num.textContent = String(n + 1);
     const where = document.createElement('span');
     where.className = 'ws-history-where';
-    where.textContent = boxLabel(g);
+    where.textContent = session.geo.boxLabel(g);
     const word = document.createElement('span');
     word.className = 'ws-history-word';
     const outcomes = cellOutcomes(session.puzzle, g, session.map);
+    const result = state.results[n];
+    // 함선을 완성한 추측은 초록 줄
+    const sunk = !!result?.completedShips.length;
+    li.classList.toggle('is-sunk', sunk);
     [...g.word].forEach((ch, k) => {
       const b = document.createElement('b');
-      b.className = `ws-chip ws-chip--${outcomes[k]}`;
+      b.className = `ws-chip ws-chip--${sunk ? 'done' : outcomes[k]}`;
       b.textContent = ch;
       word.appendChild(b);
     });
     li.append(num, word, where);
+    // 기믹 벌점·보상 — 길이 3 선호(−2 · +1) · 관문(−5)
+    const badge = (text, title, bonus = false) => {
+      const b = document.createElement('span');
+      b.className = bonus ? 'ws-history-cost is-bonus' : 'ws-history-cost';
+      b.textContent = text;
+      b.title = title;
+      li.appendChild(b);
+    };
+    if (result?.cost > 1) badge(`−${result.cost}`, `추측 ${result.cost}번 소모 (길이 3 선호)`);
+    if (result?.bonus) badge(`+${result.bonus}`, '함선 완성 — 추측 1번 돌려받음 (길이 3 선호)', true);
+    if (result?.penalty) badge(`🚩−${result.penalty}`, `관문 실패 — 추측 ${result.penalty}번 더 줄어듦`);
+    else if (result && session.puzzle.gimmicks.includes('checkpoint') && CHECKPOINTS.includes(n + 1)) badge('🚩', '관문 통과', true);
     li.addEventListener('click', () => renderer.flash(g));
     return li;
   }).reverse());
@@ -297,10 +375,17 @@ function handleSelect(box) {
   // 선택이 풀리거나 다른 칸으로 바뀌면 쓰던 입력은 버린다
   wordInput.value = '';
   setMessage('');
-  wordInput.disabled = !box;
-  btnSubmit.disabled = !box;
-  if (box) {
-    wordInput.placeholder = `${boxCells(box).map((i) => session.puzzle.onsets[i]).join(' ')} — ${box.len}글자 명사`;
+  // 기믹 때문에 못 고르는 자리면(길이 바꾸기 · 거리 두기) 입력 전에 바로 알려 준다
+  const problem = box && boxProblem(session.puzzle, session.guesses, box, rules);
+  wordInput.disabled = !box || !!problem;
+  btnSubmit.disabled = !box || !!problem;
+  if (problem) {
+    setMessage(problem, 'error');
+    wordInput.placeholder = '';
+    wordInput.blur();
+  } else if (box) {
+    const hint = session.geo.boxCells(box).map((i) => (rules.hidden[i] ? '?' : session.puzzle.onsets[i])).join(' ');
+    wordInput.placeholder = `${hint} — ${box.len}글자 명사`;
     wordInput.focus({ preventScroll: true });
   } else {
     wordInput.placeholder = '';
@@ -311,19 +396,20 @@ function handleSelect(box) {
 function renderSlots() {
   slotsEl.replaceChildren();
   if (!selection || !state || state.status !== 'playing') return;
-  const cells = boxCells(selection);
+  const cells = session.geo.boxCells(selection);
   const typed = [...wordInput.value.replace(/\s+/g, '')];
   cells.forEach((idx, i) => {
     const slot = document.createElement('span');
     slot.className = 'ws-slot';
+    const locked = rules.hidden[idx]; // 잠긴 칸 — 아무 초성이나
     const want = session.puzzle.onsets[idx];
     const ch = typed[i];
     if (ch) {
       slot.textContent = ch;
       const on = onsetOf(ch);
-      if (on) slot.classList.add(on === want ? 'is-ok' : 'is-bad');
+      if (on) slot.classList.add(locked || on === want ? 'is-ok' : 'is-bad');
     } else {
-      slot.textContent = want;
+      slot.textContent = locked ? '?' : want;
       slot.classList.add('is-empty');
     }
     slotsEl.appendChild(slot);
@@ -396,7 +482,7 @@ function afterGuess() {
     resultShown = true;
     wordInput.blur();
     if (session.kind === 'daily') {
-      recordResult(session.date, state.status === 'won' ? 'solved' : 'failed', state.status === 'won' ? state.results.length : null, session.mode.id);
+      recordResult(session.date, state.status === 'won' ? 'solved' : 'failed', state.status === 'won' ? state.used : null, session.mode.id);
     }
     setTimeout(showResultModal, 450);
   }
@@ -417,6 +503,8 @@ window.__solve = () => {
   });
   afterGuess();
 };
+// 개발용 — 기믹을 골라 익스텐디드 자유 연습: __freePlay('extended', ['wide', 'fog'])
+window.__freePlay = (modeId, gimmicks) => startFreePlay(modeId, gimmicks);
 
 // ── 정답 보기 · 새 퍼즐 ──
 btnViewAnswer.addEventListener('click', () => { viewingAnswer = !viewingAnswer; renderGame(); });
@@ -428,7 +516,8 @@ function showResultModal() {
   dailyResultTitle.textContent = won ? '🎉 함대 격파!' : '아쉬워요';
   const summary = buildSummaryLine(state, session.puzzle.ships.length, session.mode.maxGuesses);
   const where = session.kind === 'daily' ? session.date : session.kind === 'free' ? '자유 연습' : `${session.date} 지난 퍼즐`;
-  dailyResultDetail.textContent = `${session.mode.label} · ${where} · ${summary}${session.kind === 'daily' ? '' : ' (기록에는 반영되지 않아요)'}`;
+  const gimmicks = session.puzzle.gimmicks.length ? `\n${gimmickLine(session.puzzle.gimmicks)}` : '';
+  dailyResultDetail.textContent = `${session.mode.label} · ${where} · ${summary}${session.kind === 'daily' ? '' : ' (기록에는 반영되지 않아요)'}${gimmicks}`;
   // 공유 텍스트와 같은 그림이지만, 화면에서는 칸 폭을 고정해 줄을 정확히 맞춘다 (공백 = 빈 칸)
   dailyResultGrid.replaceChildren(...buildFleetGrid(session.puzzle, state).split('\n').map((line) => {
     const row = document.createElement('div');
@@ -456,7 +545,7 @@ async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-// ── 오늘의 퍼즐 (스탠다드 · 사자성어) ──
+// ── 오늘의 퍼즐 (스탠다드 · 익스텐디드 · 사자성어) ──
 async function startDaily(modeId) {
   const mode = modeOf(modeId);
   const date = TODAY();
@@ -486,18 +575,24 @@ function refreshLandingCard() {
     else if (today?.status === 'failed') { el.textContent = '실패'; el.dataset.status = 'timeout'; }
     else {
       const p = loadProgress(TODAY(), mode.id);
-      if (p && p.guesses?.length) { el.textContent = `진행 중 · ${p.guesses.length}/${mode.maxGuesses}`; el.dataset.status = 'playing'; }
+      if (p && p.guesses?.length) { el.textContent = `진행 중 · ${p.used ?? p.guesses.length}/${mode.maxGuesses}`; el.dataset.status = 'playing'; }
       else { el.textContent = '플레이 전'; el.dataset.status = 'new'; }
     }
   }
+  // 익스텐디드 카드에 오늘의 기믹 이름 — 퍼즐 파일을 받아 와야 알 수 있다 (못 받으면 기본 설명 그대로)
+  const date = TODAY();
+  loadDailyPuzzle(date, MODES.extended).then((p) => {
+    if (date === TODAY() && p.gimmicks.length) extendedCardDesc.textContent = gimmickLine(p.gimmicks);
+  }).catch(() => {});
 }
 
 // ── 자유 연습 — 모드를 고르면 브라우저에서 즉석 생성 ──
-async function startFreePlay(modeId) {
+async function startFreePlay(modeId, pickedGimmicks = null) {
   const mode = modeOf(modeId);
   try {
     const [pool, { generatePuzzle }] = await Promise.all([loadAnswerPool(mode), import('./game/generator.js')]);
-    const puzzle = generatePuzzle(`free:${Date.now()}:${Math.random()}`, pool, { fleet: mode.fleet, minDecoys: mode.minDecoys });
+    const gimmicks = mode.gimmicks ? (pickedGimmicks ?? randomGimmicks()) : [];
+    const puzzle = generatePuzzle(`free:${Date.now()}:${Math.random()}`, pool, { fleet: mode.fleet, minDecoys: mode.minDecoys, gimmicks });
     openGame({ kind: 'free', date: '자유 연습', mode: mode.id, puzzle, guesses: [] });
   } catch (err) {
     dailyErrorEl.textContent = '자유 연습 퍼즐을 만들지 못했어요.';
@@ -661,12 +756,13 @@ function renderStats() {
 
   dailyStatsDist.innerHTML = '';
   const max = Math.max(1, ...s.distribution);
-  DIST_BUCKETS.forEach((label, i) => {
+  const buckets = distBuckets(statsMode);
+  buckets.forEach((label, i) => {
     const count = s.distribution[i];
     const row = document.createElement('div');
     row.className = 'ws-dist-row';
     row.innerHTML = `<span class="ws-dist-label">${label}</span>
-      <span class="ws-dist-track"><span class="ws-dist-fill${i === DIST_BUCKETS.length - 1 ? ' is-fail' : ''}" style="width:${(count / max) * 100}%"></span></span>
+      <span class="ws-dist-track"><span class="ws-dist-fill${i === buckets.length - 1 ? ' is-fail' : ''}" style="width:${(count / max) * 100}%"></span></span>
       <span class="ws-dist-count">${count}</span>`;
     dailyStatsDist.appendChild(row);
   });
@@ -739,7 +835,7 @@ try {
 } catch { /* 무시 */ }
 loadGuessDict().catch((err) => console.error(err));
 
-// ── 허브의 지난 퍼즐 달력에서 고른 날짜로 바로 시작 (?archive=YYYY-MM-DD&mode=standard|idiom) ──
+// ── 허브의 지난 퍼즐 달력에서 고른 날짜로 바로 시작 (?archive=YYYY-MM-DD&mode=standard|extended|idiom) ──
 function playArchiveFromHub(date, mode) {
   btnArchive.click();
   if (!Object.hasOwn(MODES, mode) || date < DAILY_FIRST_DATE || date >= TODAY()) return;
@@ -749,7 +845,7 @@ function playArchiveFromHub(date, mode) {
   btnArchivePlay.disabled = false;
   btnArchivePlay.click();
 }
-// ── 허브의 자유 연습 모드 고르기에서 바로 시작 (?free=standard|idiom) ──
+// ── 허브의 자유 연습 모드 고르기에서 바로 시작 (?free=standard|extended|idiom) ──
 function playFreeFromHub(mode) {
   if (Object.hasOwn(MODES, mode)) startFreePlay(mode);
 }

@@ -3,7 +3,8 @@
  * (DailyTrilateral/src/daily/share.js 이식 — 캘린더 부분은 그대로, 결과 부분은 함선별 칸 그림으로)
  */
 import { MAX_GUESSES } from '../game/game.js';
-import { boxCells } from '../game/board.js';
+import { geoOf } from '../game/board.js';
+import { gimmickLine } from '../game/gimmicks.js';
 
 const PAD = '　'; // 전각 공백 — 이모지 한 칸 폭과 비슷해서 줄 맞춤에 쓴다
 
@@ -13,6 +14,7 @@ const PAD = '　'; // 전각 공백 — 이모지 한 칸 폭과 비슷해서 �
  * 긴 함선과 짧은 함선을 짝지어 한 줄에 둘씩 놓는다 (4칸+2칸 / 3칸+2칸 / 3칸+3칸).
  */
 export function buildFleetGrid(puzzle, state) {
+  const { boxCells } = geoOf(puzzle);
   const ships = puzzle.ships.map((ship, s) => ({ ship, s })).sort((a, b) => b.ship.len - a.ship.len || a.s - b.s);
   const draw = ({ ship, s }) => boxCells(ship).map((idx) => {
     if (state.completed[s]) return '🟩';
@@ -30,15 +32,16 @@ export function buildFleetGrid(puzzle, state) {
   return rows.join('\n');
 }
 
-/** 결과 요약 한 줄 — '🚢 6/6 · 추측 14/20' */
+/** 결과 요약 한 줄 — '🚢 6/6 · 추측 14/20' (추측 수는 '비싼 추측' 벌점 포함) */
 export function buildSummaryLine(state, shipCount, maxGuesses = MAX_GUESSES) {
   const found = state.completed.filter(Boolean).length;
-  return `🚢 ${found}/${shipCount} · 추측 ${state.results.length}/${maxGuesses}`;
+  return `🚢 ${found}/${shipCount} · 추측 ${state.used}/${maxGuesses}`;
 }
 
-/** 공유용 전체 텍스트. title 예: '데일리 워드십 · 2026-09-24' */
+/** 공유용 전체 텍스트. title 예: '데일리 워드십 · 2026-09-24'. 익스텐디드면 그날의 기믹 줄이 붙는다 */
 export function buildShareText({ title, puzzle, state, url, maxGuesses }) {
-  const parts = [title, buildSummaryLine(state, puzzle.ships.length, maxGuesses), buildFleetGrid(puzzle, state), ''];
+  const gimmicks = puzzle.gimmicks?.length ? [gimmickLine(puzzle.gimmicks)] : [];
+  const parts = [title, ...gimmicks, buildSummaryLine(state, puzzle.ships.length, maxGuesses), buildFleetGrid(puzzle, state), ''];
   if (url) parts.push(url);
   return parts.join('\n');
 }

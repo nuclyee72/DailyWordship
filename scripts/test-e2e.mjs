@@ -10,8 +10,10 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { startServer } from './dev-server.mjs';
 import { dateStrKST } from '../src/daily/dateUtil.js';
-import { boxCells } from '../src/game/board.js';
-import { MAX_GUESSES } from '../src/game/game.js';
+import { boardOf } from '../src/game/board.js';
+import { MAX_GUESSES, parsePuzzle, guessRules, boxProblem } from '../src/game/game.js';
+import { GIMMICKS, gimmickLine } from '../src/game/gimmicks.js';
+import { MODES } from '../src/game/modes.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOT_DIR = process.argv[2];
@@ -23,12 +25,15 @@ function assert(name, cond) {
 
 const today = dateStrKST();
 const puzzle = JSON.parse(readFileSync(path.join(ROOT, 'daily', `${today}.json`), 'utf8'));
+const ext = JSON.parse(readFileSync(path.join(ROOT, 'daily', `extended-${today}.json`), 'utf8'));
+const extGeo = boardOf(ext.size);
+const extPuzzle = parsePuzzle(ext);
 const server = await startServer(0);
 const base = `http://localhost:${server.address().port}`;
 const consoleErrors = [];
 
-async function dragBox(page, box) {
-  const cells = boxCells(box);
+async function dragBox(page, box, geo = boardOf(8)) {
+  const cells = geo.boxCells(box);
   const a = await page.locator('.ws-cell').nth(cells[0]).boundingBox();
   const b = await page.locator('.ws-cell').nth(cells[cells.length - 1]).boundingBox();
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
@@ -146,11 +151,95 @@ try {
     await page.waitForSelector('.ws-cell');
     assert('사자성어 자유 연습 — 5척', await page.locator('.ws-fleet-ship').count() === 5);
 
-    // 다크 모드
+    // 익스텐디드 데일리 — 그날의 기믹 (오늘: ${ext.gimmicks})
+    await page.click('#btn-go-landing');
+    await page.waitForFunction((label) => document.getElementById('daily-card-desc-extended').textContent.includes(label), GIMMICKS[ext.gimmicks[0]].label, { timeout: 5000 });
+    assert('익스텐디드 카드에 오늘의 기믹 이름', true);
+    await page.click('#btn-daily-play-extended');
+    await page.waitForSelector('.ws-gimmick');
+    assert(`익스텐디드 — 칸 ${extGeo.cellCount}개`, await page.locator('.ws-cell').count() === extGeo.cellCount);
+    assert('익스텐디드 — 기믹 칩 2개', await page.locator('.ws-gimmick').count() === 2);
+    assert(`익스텐디드 — 남은 추측 ${MODES.extended.maxGuesses}`, (await page.textContent('#ws-guesses-left')) === String(MODES.extended.maxGuesses));
+    assert(`잠긴 칸 ${ext.locked.length}개`, await page.locator('.ws-tile.is-hidden').count() === ext.locked.length);
+    assert(`구멍 ${extPuzzle.holes.length}개`, await page.locator('.ws-tile.is-hole').count() === extPuzzle.holes.length);
+    assert(`함대 ${ext.ships.length}척`, await page.locator('.ws-fleet-ship').count() === ext.ships.length);
+    const s0 = ext.ships[0];
+    const s0cells = extGeo.boxCells(s0);
+    await dragBox(page, s0, extGeo);
+    await page.fill('#ws-word-input', s0.name);
+    await page.press('#ws-word-input', 'Enter');
+    await page.waitForFunction(() => document.querySelectorAll('.ws-tile.is-done').length > 0, null, { timeout: 15000 });
+    assert('익스텐디드 — 함선 완성 (잠긴 칸이 섞여도 함명 그대로 통과)', await page.locator('.ws-tile.is-done').count() === s0.len);
+    assert('함선 완성 → 기록에 초록 줄', await page.locator('.ws-history-item.is-sunk').count() === 1
+      && await page.locator('.ws-history-item.is-sunk .ws-chip--done').count() === s0.len);
+    if (ext.gimmicks.includes('costly')) {
+      assert('비싼 추측 — 완성하면 +1 (남은 추측 그대로)', (await page.textContent('#ws-guesses-left')) === String(MODES.extended.maxGuesses)
+        && (await page.textContent('.ws-history-cost')) === '+1');
+    }
+    const unlocked = s0cells.filter((i) => ext.locked.includes(i)).length;
+    assert(`추측에 포함된 잠긴 칸 ${unlocked}개는 풀림`, await page.locator('.ws-tile.is-hidden').count() === ext.locked.length - unlocked);
+    // 직전 추측으로 생긴 제약 — 빗금 칸 수, 그리고 막힌 자리를 고르면 바로 안내 (오늘 기믹이 막는 게 있을 때만)
+    const done = [{ ...s0, word: s0.name }];
+    const rules = guessRules(extPuzzle, done);
+    const blockedN = rules.blocked.filter((r, i) => r && !rules.holes[i]).length;
+    assert(`못 쓰는 칸 빗금 ${blockedN}개`, await page.locator('.ws-tile.is-blocked').count() === blockedN);
+    const bad = [4, 3, 2].flatMap((len) => extGeo.allBoxes(len)).find((b) => boxProblem(extPuzzle, done, b, rules));
+    if (bad) {
+      const want = boxProblem(extPuzzle, done, bad, rules);
+      await dragBox(page, bad, extGeo);
+      const m = await page.textContent('#ws-message');
+      assert(`막힌 자리 → 바로 안내 ("${m}")`, m === want && await page.locator('#ws-word-input').isDisabled());
+      await page.keyboard.press('Escape');
+    }
+    await page.click('.ws-gimmick >> nth=0');
+    assert('기믹 칩 → 설명', (await page.textContent('#ws-message')).includes(GIMMICKS[ext.gimmicks[0]].help.slice(0, 10)));
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-7-extended.png`) });
+    await page.evaluate(() => window.__solve());
+    await page.waitForSelector('#daily-result-modal.show', { timeout: 3000 });
+    const detail = await page.textContent('#daily-result-detail');
+    assert('익스텐디드 — 결과에 기믹 표시', detail.startsWith('익스텐디드') && detail.includes(gimmickLine(ext.gimmicks)));
+    await page.click('#btn-daily-result-close');
+    await page.click('#btn-go-landing');
+    assert('익스텐디드 카드 = 성공', (await page.textContent('#daily-card-status-extended')) === '성공');
+    await page.click('#btn-landing-stats');
+    await page.click('#daily-stats-modal .daily-stats-tab[data-mode="extended"]');
+    assert('통계 익스텐디드 탭 — 1게임', (await page.textContent('#stat-played')) === '1');
+    assert('통계 익스텐디드 — 분포 첫 구간 1~15번', (await page.locator('.ws-dist-label').first().textContent()) === '1~15번');
+    await page.click('#daily-stats-close');
+
+    // 익스텐디드 자유 연습 — 넓은 바다(10×10) + 잠긴 칸
+    await page.evaluate(() => window.__freePlay('extended', ['wide', 'fog']));
+    await page.waitForFunction(() => document.querySelectorAll('.ws-cell').length === 100);
+    assert('넓은 바다 — 10×10 · 좌표 j·10', (await page.locator('.ws-col-labels span').last().textContent()) === 'j'
+      && (await page.locator('.ws-row-labels span').last().textContent()) === '10');
+    assert('잠긴 칸 17개 (100칸의 1/6)', await page.locator('.ws-tile.is-hidden').count() === 17);
+    await dragBox(page, { r: 9, c: 6, dir: 'h', len: 4 }, boardOf(10));
+    assert('10×10 드래그 — 오른쪽 아래 4칸', await page.locator('.ws-tile.is-selected').count() === 4);
+    const cellW = await page.locator('.ws-cell').first().evaluate((e) => e.getBoundingClientRect().width);
+    const boardW = await page.locator('#ws-board').evaluate((e) => e.getBoundingClientRect().width);
+    assert('10×10 — 칸 폭 = 판 폭 / 10', Math.abs(cellW * 10 - boardW) < 1);
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-8-wide.png`) });
+
+    // 도넛 바다(12×12, 가운데 4×4 구멍) · 좁은 바다(7×7)
+    await page.evaluate(() => window.__freePlay('extended', ['donut', 'checkpoint']));
+    await page.waitForFunction(() => document.querySelectorAll('.ws-cell').length === 144);
+    assert('도넛 바다 — 12×12 · 좌표 l·12 · 구멍 16칸', (await page.locator('.ws-col-labels span').last().textContent()) === 'l'
+      && (await page.locator('.ws-row-labels span').last().textContent()) === '12' && await page.locator('.ws-tile.is-hole').count() === 16);
+    await dragBox(page, { r: 3, c: 3, dir: 'd', len: 3 }, boardOf(12));
+    assert('도넛 바다 — 구멍을 지나는 박스는 바로 안내', (await page.textContent('#ws-message')).includes('구멍'));
+    await page.keyboard.press('Escape');
+    assert('관문 칩 — 10번째 격침 필수', (await page.textContent('.ws-gimmick[data-gimmick="checkpoint"] small')).startsWith('10번째'));
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-9-donut.png`) });
+    await page.evaluate(() => window.__freePlay('extended', ['narrow', 'extra4']));
+    await page.waitForFunction(() => document.querySelectorAll('.ws-cell').length === 49);
+    assert('좁은 바다 — 7×7 · 함선 7척', await page.locator('.ws-fleet-ship').count() === 7);
+
+    // 다크 모드 (스탠다드로 돌아오면 다시 8×8)
     await page.click('#btn-go-landing');
     await page.click('#btn-landing-dark');
     await page.click('#btn-daily-play');
     await page.waitForSelector('.ws-cell');
+    assert('스탠다드로 돌아오면 칸 64개', await page.locator('.ws-cell').count() === 64);
     if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `${viewport.name}-6-dark.png`) });
     await context.close();
   }

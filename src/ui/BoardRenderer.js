@@ -1,16 +1,16 @@
 /**
- * BoardRenderer.js — 8×8 해역 그리기 + 드래그로 박스 고르기.
+ * BoardRenderer.js — N×N 해역 그리기(기본 8×8, '넓은 바다' 10×10) + 드래그로 박스 고르기.
  *
  * 구조
- *   .ws-board            8×8 CSS grid. 칸 하나 = 정확히 1/8 폭이라 칸 중심 = (c + 0.5) / 8
- *     .ws-cell × 64      칸 안의 둥근 타일(.ws-tile)이 초성·음절을 보여 준다
- *     svg.ws-overlay     그 위에 겹친 SVG(viewBox 0 0 8 8). 함선 외곽선·선택 박스를 '캡슐'로 그린다 —
+ *   .ws-board            N×N CSS grid(--ws-size). 칸 하나 = 정확히 1/N 폭이라 칸 중심 = (c + 0.5) / N
+ *     .ws-cell × N²      칸 안의 둥근 타일(.ws-tile)이 초성·음절을 보여 준다
+ *     svg.ws-overlay     그 위에 겹친 SVG(viewBox 0 0 N N). 함선 외곽선·선택 박스를 '캡슐'로 그린다 —
  *                        대각선 함선도 칸 테두리가 아니라 비스듬한 캡슐 하나로 감쌀 수 있다
  *
  * 입력 — 칸에서 누른 채 끌면 8방향 중 가장 가까운 쪽으로 스냅한 2~4칸 박스가 된다.
  * 드래그 없이 두 칸을 차례로 눌러도 된다(첫 칸 = 기준점, 둘째 칸 = 끝점).
  */
-import { SIZE, CELL_COUNT, boxCells, boxFromEndpoints, idxOf, rowOf, colOf, MAX_BOX } from '../game/board.js';
+import { boardOf, DEFAULT_SIZE, MAX_BOX } from '../game/board.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const STEP_ANGLES = [
@@ -31,8 +31,34 @@ export class BoardRenderer {
     this.drag = null;         // { start, moved }
     this.selection = null;    // 현재 박스
 
+    this.svg = document.createElementNS(SVG_NS, 'svg');
+    this.svg.setAttribute('class', 'ws-overlay');
+    this.svg.setAttribute('aria-hidden', 'true');
+    this.shipLayer = document.createElementNS(SVG_NS, 'g');
+    this.flashLayer = document.createElementNS(SVG_NS, 'g');
+    this.selLayer = document.createElementNS(SVG_NS, 'g');
+    this.svg.append(this.shipLayer, this.flashLayer, this.selLayer);
     this.cells = [];
-    for (let idx = 0; idx < CELL_COUNT; idx++) {
+    this.setSize(DEFAULT_SIZE);
+
+    root.addEventListener('pointerdown', (e) => this.#onDown(e));
+    root.addEventListener('pointermove', (e) => this.#onMove(e));
+    root.addEventListener('pointerup', (e) => this.#onUp(e));
+    root.addEventListener('pointercancel', () => { this.drag = null; });
+  }
+
+  /** 판 크기를 바꾼다 — 칸을 새로 만들고 CSS 변수 --ws-size(좌표 라벨·글자 크기가 따라감)를 맞춘다 */
+  setSize(size) {
+    if (this.geo?.size === size) return;
+    this.geo = boardOf(size);
+    this.anchor = null;
+    this.drag = null;
+    this.selection = null;
+    (this.root.closest('.ws-board-wrap') ?? this.root).style.setProperty('--ws-size', String(size));
+    this.svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    this.cells = [];
+    const frag = document.createDocumentFragment();
+    for (let idx = 0; idx < this.geo.cellCount; idx++) {
       const cell = document.createElement('div');
       cell.className = 'ws-cell';
       cell.dataset.idx = String(idx);
@@ -44,31 +70,24 @@ export class BoardRenderer {
       order.className = 'ws-tile-order';
       tile.append(main, order);
       cell.appendChild(tile);
-      root.appendChild(cell);
+      frag.appendChild(cell);
       this.cells.push({ cell, tile, main, order });
     }
-
-    this.svg = document.createElementNS(SVG_NS, 'svg');
-    this.svg.setAttribute('class', 'ws-overlay');
-    this.svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
-    this.svg.setAttribute('aria-hidden', 'true');
-    this.shipLayer = document.createElementNS(SVG_NS, 'g');
-    this.flashLayer = document.createElementNS(SVG_NS, 'g');
-    this.selLayer = document.createElementNS(SVG_NS, 'g');
-    this.svg.append(this.shipLayer, this.flashLayer, this.selLayer);
-    root.appendChild(this.svg);
-
-    root.addEventListener('pointerdown', (e) => this.#onDown(e));
-    root.addEventListener('pointermove', (e) => this.#onMove(e));
-    root.addEventListener('pointerup', (e) => this.#onUp(e));
-    root.addEventListener('pointercancel', () => { this.drag = null; });
+    frag.appendChild(this.svg);
+    this.root.replaceChildren(frag);
+    this.shipLayer.replaceChildren();
+    this.flashLayer.replaceChildren();
+    this.selLayer.replaceChildren();
   }
 
   /**
    * @param {{ onsets: string[], revealed: (string|null)[], hit: boolean[], miss: boolean[],
-   *   doneCells: Set<number>, doneShips: object[], answerShips?: object[], interactive: boolean }} view
+   *   doneCells: Set<number>, doneShips: object[], answerShips?: object[], interactive: boolean,
+   *   hidden?: boolean[], blocked?: (string|null)[], holes?: boolean[] }} view
+   *   hidden — 초성이 가려진 잠긴 칸 / blocked — 이번 추측에 못 쓰는 칸 / holes — 판에 뚫린 칸 (익스텐디드 기믹)
    */
   render(view) {
+    const { boxCells } = this.geo;
     this.interactive = view.interactive;
     this.root.classList.toggle('is-locked', !view.interactive);
     const answerAt = new Map();
@@ -78,13 +97,17 @@ export class BoardRenderer {
       const syl = view.revealed[idx];
       const done = view.doneCells.has(idx);
       const answer = !syl && answerAt.get(idx);
+      const hidden = !syl && !answer && view.hidden?.[idx];
       tile.className = 'ws-tile';
+      if (view.holes?.[idx]) { tile.classList.add('is-hole'); main.textContent = ''; return; }
       if (done) tile.classList.add('is-done');
       else if (syl) tile.classList.add('is-reveal');
       else if (answer) tile.classList.add('is-answer');
       else if (view.hit[idx]) tile.classList.add('is-hit');
       else if (view.miss[idx]) tile.classList.add('is-miss');
-      main.textContent = syl || answer || view.onsets[idx];
+      if (hidden) tile.classList.add('is-hidden');
+      if (view.blocked?.[idx]) tile.classList.add('is-blocked');
+      main.textContent = syl || answer || (hidden ? '' : view.onsets[idx]);
       tile.classList.toggle('is-syllable', !!(syl || answer));
     });
 
@@ -118,7 +141,7 @@ export class BoardRenderer {
     this.selLayer.replaceChildren();
     if (this.anchor !== null && !box) this.cells[this.anchor].tile.classList.add('is-anchor');
     if (!box) return;
-    boxCells(box).forEach((idx, i) => {
+    this.geo.boxCells(box).forEach((idx, i) => {
       this.cells[idx].tile.classList.add('is-selected');
       this.cells[idx].order.textContent = String(i + 1);
     });
@@ -127,6 +150,7 @@ export class BoardRenderer {
 
   /** 박스를 감싸는 캡슐(둥근 사각형, 박스 방향으로 회전) */
   #capsule(box, cls) {
+    const { boxCells, rowOf, colOf } = this.geo;
     const cells = boxCells(box);
     const a = cells[0];
     const b = cells[cells.length - 1];
@@ -147,17 +171,19 @@ export class BoardRenderer {
   }
 
   #cellAt(e) {
+    const { size, idxOf } = this.geo;
     const rect = this.root.getBoundingClientRect();
-    const c = Math.floor(((e.clientX - rect.left) / rect.width) * SIZE);
-    const r = Math.floor(((e.clientY - rect.top) / rect.height) * SIZE);
-    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return null;
+    const c = Math.floor(((e.clientX - rect.left) / rect.width) * size);
+    const r = Math.floor(((e.clientY - rect.top) / rect.height) * size);
+    if (r < 0 || r >= size || c < 0 || c >= size) return null;
     return idxOf(r, c);
   }
 
   /** 시작 칸 기준, 포인터 방향을 8방향 중 하나로 스냅하고 1~3걸음(=2~4칸)으로 자른 끝 칸 */
   #snapEnd(start, e) {
+    const { size, idxOf, rowOf, colOf } = this.geo;
     const rect = this.root.getBoundingClientRect();
-    const cellPx = rect.width / SIZE;
+    const cellPx = rect.width / size;
     const sx = rect.left + (colOf(start) + 0.5) * cellPx;
     const sy = rect.top + (rowOf(start) + 0.5) * cellPx;
     const dx = e.clientX - sx;
@@ -171,7 +197,7 @@ export class BoardRenderer {
     while (steps > 0) {
       const r = rowOf(start) + dr * steps;
       const c = colOf(start) + dc * steps;
-      if (r >= 0 && r < SIZE && c >= 0 && c < SIZE) return idxOf(r, c);
+      if (r >= 0 && r < size && c >= 0 && c < size) return idxOf(r, c);
       steps--;
     }
     return null;
@@ -191,7 +217,7 @@ export class BoardRenderer {
     const end = this.#snapEnd(this.drag.start, e);
     if (end === this.drag.end) return;
     this.drag.end = end;
-    this.#paintSelection(end === null ? null : boxFromEndpoints(this.drag.start, end), { preview: true });
+    this.#paintSelection(end === null ? null : this.geo.boxFromEndpoints(this.drag.start, end), { preview: true });
   }
 
   #onUp(e) {
@@ -199,13 +225,13 @@ export class BoardRenderer {
     const { start, end } = this.drag;
     this.drag = null;
     if (end !== null) {
-      this.setSelection(boxFromEndpoints(start, end));
+      this.setSelection(this.geo.boxFromEndpoints(start, end));
       return;
     }
     // 드래그 없이 탭 — 기준점이 있으면 기준점~이 칸으로 박스, 없으면 이 칸을 기준점으로
     const tapped = this.#cellAt(e) ?? start;
     if (this.anchor !== null && this.anchor !== tapped) {
-      const box = boxFromEndpoints(this.anchor, tapped);
+      const box = this.geo.boxFromEndpoints(this.anchor, tapped);
       if (box) { this.setSelection(box); return; }
     }
     this.selection = null;

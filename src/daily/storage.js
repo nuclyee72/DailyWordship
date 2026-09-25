@@ -4,6 +4,7 @@
  * 모든 접근은 try/catch로 감싼다(프라이빗 모드/차단 브라우저에서도 게임은 되게).
  */
 import { shiftDateStr } from './dateUtil.js';
+import { modeOf } from '../game/modes.js';
 
 // 스탠다드는 처음부터 쓰던 키 그대로, 사자성어 등 다른 모드는 모드 이름을 끼운 키에 따로 쌓는다
 const PROGRESS_KEY = (date, mode) => (mode === 'standard' ? `wordship:progress:${date}` : `wordship:progress:${mode}:${date}`);
@@ -27,6 +28,7 @@ function writeJSON(key, value) {
  * @property {string} date
  * @property {string} onsets     그 날 퍼즐의 초성 64자 — 퍼즐이 바뀌었는지 확인용
  * @property {{r,c,dir,len,word}[]} guesses  지금까지의 추측(이것만 있으면 상태를 다시 계산할 수 있다)
+ * @property {number} used       쓴 추측 수(벌점 포함) — 허브·랜딩의 '진행 중 n/한도' 표시용
  * @property {'playing'|'solved'|'failed'} status
  */
 
@@ -57,12 +59,20 @@ export function recordResult(date, status, attempt = null, mode = 'standard') {
 
 // ── 집계 (통계창) ──
 
-/** 사용한 추측 수 분포 — 30칸은 너무 길어서 5개씩 묶는다 */
-export const DIST_BUCKETS = ['1~5번', '6~10번', '11~15번', '16~20번', '21~25번', '26~30번', '실패'];
+/**
+ * 사용한 추측 수 분포 구간 이름 — 모드의 distBounds(구간 위쪽 끝)로 만든다.
+ *   스탠다드 [5,10,…,30] → '1~5번' … '26~30번', '실패'
+ */
+export function distBuckets(mode = 'standard') {
+  const bounds = modeOf(mode).distBounds;
+  return [...bounds.map((hi, i) => `${i ? bounds[i - 1] + 1 : 1}~${hi}번`), '실패'];
+}
 
-export function bucketIndexFor(status, attempt) {
-  if (status !== 'solved') return DIST_BUCKETS.length - 1;
-  return Math.min(DIST_BUCKETS.length - 2, Math.max(0, Math.floor((attempt - 1) / 5)));
+export function bucketIndexFor(status, attempt, mode = 'standard') {
+  const bounds = modeOf(mode).distBounds;
+  if (status !== 'solved') return bounds.length;
+  const i = bounds.findIndex((hi) => attempt <= hi);
+  return i < 0 ? bounds.length - 1 : i;
 }
 
 /**
@@ -75,11 +85,11 @@ export function summarize(todayStr, mode = 'standard') {
   const dates = Object.keys(results).sort();
   const played = dates.length;
   let wins = 0;
-  const distribution = new Array(DIST_BUCKETS.length).fill(0);
+  const distribution = new Array(distBuckets(mode).length).fill(0);
   for (const d of dates) {
     const r = results[d];
     if (r.status === 'solved') wins++;
-    distribution[bucketIndexFor(r.status, r.attempt)]++;
+    distribution[bucketIndexFor(r.status, r.attempt, mode)]++;
   }
 
   // 최고 연승: 날짜가 하루씩 이어지면서 solved인 최장 구간

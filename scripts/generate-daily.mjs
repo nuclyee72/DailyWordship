@@ -1,6 +1,7 @@
 /**
  * generate-daily.mjs — 그 날의 퍼즐을 모드별로 생성해 저장.
- *   스탠다드 → daily/<date>.json · 사자성어 → daily/idiom-<date>.json (src/game/modes.js)
+ *   스탠다드 → daily/<date>.json · 익스텐디드 → daily/extended-<date>.json · 사자성어 → daily/idiom-<date>.json
+ *   (src/game/modes.js). 익스텐디드는 그날의 기믹 2개(src/game/gimmicks.js)와 판 크기·잠긴 칸도 같이 담는다.
  * (DailyTrilateral/scripts/generate-daily.mjs와 같은 패턴 — 멱등, 며칠치 버퍼, GitHub Actions 크론이 호출)
  *
  *   node scripts/generate-daily.mjs                # KST 오늘 + 앞으로 3일 (버퍼)
@@ -19,6 +20,7 @@ import { generatePuzzle } from '../src/game/generator.js';
 import { dateStrKST, shiftDateStr } from '../src/daily/dateUtil.js';
 import { loadAnswerPool } from './lib/words.mjs';
 import { MODES } from '../src/game/modes.js';
+import { dailyGimmicks } from '../src/game/gimmicks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DAILY_DIR = path.join(__dirname, '..', 'daily');
@@ -31,16 +33,19 @@ async function generateForDate(dateStr, mode) {
     console.log(`· ${fileName} 이미 있음 — 건너뜀`);
     return false;
   }
-  const puzzle = generatePuzzle(`${mode.seedPrefix}:${dateStr}`, pools[mode.id], { fleet: mode.fleet, minDecoys: mode.minDecoys });
+  const gimmicks = mode.gimmicks ? dailyGimmicks(dateStr) : [];
+  const puzzle = generatePuzzle(`${mode.seedPrefix}:${dateStr}`, pools[mode.id], { fleet: mode.fleet, minDecoys: mode.minDecoys, gimmicks });
   const payload = {
     date: dateStr,
+    // 기믹 없는 모드는 예전 파일 형식 그대로 (8×8 · 잠긴 칸 없음)
+    ...(gimmicks.length ? { gimmicks, size: puzzle.size, locked: puzzle.locked, holes: puzzle.holes } : {}),
     onsets: puzzle.onsets.join(''),
     ships: puzzle.ships.map(({ len, r, c, dir, name }) => ({ len, r, c, dir, name })),
     generatedAt: new Date().toISOString(),
   };
   await mkdir(DAILY_DIR, { recursive: true });
   await writeFile(outPath, JSON.stringify(payload) + '\n', 'utf8');
-  console.log(`✓ ${fileName} 저장 (${payload.ships.map((s) => s.name).join(', ')})`);
+  console.log(`✓ ${fileName} 저장 (${payload.ships.map((s) => s.name).join(', ')}${gimmicks.length ? ` · 기믹 ${gimmicks.join('+')}` : ''})`);
   return true;
 }
 

@@ -35,6 +35,9 @@
   --select:             #3b7ddd;
   --select-soft:        rgba(59, 125, 221, 0.16);
   --order-bg:           #1f2f6b;
+  --fog-bg:             #c7d0dc;   /* 잠긴 칸 (익스텐디드) */
+  --fog-icon:           rgba(35, 39, 51, 0.42);
+  --blocked-line:       rgba(35, 39, 51, 0.28); /* 거리 두기 빗금 */
 }
 
 [data-theme="dark"] {
@@ -68,6 +71,9 @@
   --select:             #6aa2f5;
   --select-soft:        rgba(106, 162, 245, 0.2);
   --order-bg:           #e8a33a;
+  --fog-bg:             #2f3542;
+  --fog-icon:           rgba(228, 230, 234, 0.45);
+  --blocked-line:       rgba(228, 230, 234, 0.3);
 }
 
 /* ── 스크롤바는 모든 곳에서 숨긴다 (스크롤 동작 자체는 그대로) ── */
@@ -206,6 +212,10 @@ html, body {
 .daily-card-status[data-status="timeout"] { background: var(--surface-danger); color: var(--conflict); }
 .daily-card-status[data-status="playing"] { background: #fff3d6; color: #a9791d; }
 [data-theme="dark"] .daily-card-status[data-status="playing"] { background: #3a3320; color: #e0b24c; }
+/* 카드 3개(스탠다드·익스텐디드·사자성어) — 상태 배지를 이름 오른쪽으로 올려 한 줄을 아낀다 (허브와 같은 모양) */
+.daily-cards.is-compact .daily-card { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 10px; }
+.daily-cards.is-compact .daily-card-desc { grid-column: 1 / -1; }
+.daily-cards.is-compact .daily-card-status { grid-column: 2; grid-row: 1; margin-top: 0; white-space: nowrap; }
 
 .landing-note { margin: 4px 0 0; font-size: 12px; color: rgba(var(--text-given-rgb), 0.55); }
 .landing-error { margin: 0; font-size: 12px; color: var(--conflict); }
@@ -343,7 +353,7 @@ html, body {
 /* 결과 모달 */
 .daily-result-card { width: min(340px, calc(100vw - 32px)); text-align: center; }
 .daily-result-card .floating-panel-title { padding-right: 0; }
-.daily-result-detail { margin: 6px 0 16px; font-size: 14px; color: rgba(var(--text-given-rgb), 0.7); }
+.daily-result-detail { margin: 6px 0 16px; font-size: 14px; color: rgba(var(--text-given-rgb), 0.7); white-space: pre-line; }
 .daily-result-grid {
   display: inline-block;
   margin: 0 0 18px;
@@ -364,6 +374,8 @@ html, body {
 .help-rules p { margin: 0; font-size: 14px; line-height: 1.5; color: rgba(var(--text-given-rgb), 0.8); }
 .help-rules strong { display: block; margin-bottom: 2px; font-size: 13px; font-weight: 700; color: var(--text-input); }
 .help-legend { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.help-gimmick { display: block; margin: 4px 0 0; font-size: 13px; }
+.help-gimmick b { font-weight: 700; color: var(--text-given); }
 .lg { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 5px; }
 .lg-miss   { background: var(--miss-bg); }
 .lg-hit    { background: var(--hit-bg); box-shadow: inset 0 0 0 2px var(--hit-line); }
@@ -555,7 +567,8 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap; /* 익스텐디드 기믹 칩은 다음 줄 */
+  gap: 6px 10px;
   flex: 0 0 auto;
 }
 .ws-fleet { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -576,9 +589,31 @@ html, body {
 .ws-fleet-ship.is-done i { background: var(--cell-selected); box-shadow: inset 0 0 0 1.5px var(--text-input); }
 .ws-fleet-ship.is-answer i { color: rgba(var(--text-given-rgb), 0.6); box-shadow: inset 0 0 0 1.5px rgba(var(--text-given-rgb), 0.35); }
 .ws-mode-label { font-size: 12px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.5); white-space: nowrap; }
+.ws-gimmicks { flex: 1 0 100%; order: 3; display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-gimmicks[hidden] { display: none; }
+.ws-gimmick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-given);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.ws-gimmick:hover { background: var(--surface-1-hover); }
+.ws-gimmick b { font-weight: 700; }
+.ws-gimmick small { font-size: 11px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.55); }
+.ws-gimmick-icon { font-size: 12px; }
+.ws-gimmick-relaxed { align-self: center; font-size: 11px; font-weight: 700; color: var(--hit-text); }
 
-/* 보드 — 좌표 라벨(a~h, 1~8)을 두른 카드 */
+/* 보드 — 좌표 라벨(a~h, 1~8)을 두른 카드. 한 변 칸 수 = --ws-size (8, '넓은 바다'면 10) */
 .ws-board-wrap {
+  --ws-size: 8;
   display: grid;
   grid-template-columns: 14px var(--board);
   grid-template-rows: 14px var(--board);
@@ -589,8 +624,8 @@ html, body {
   box-shadow: 0 6px 20px rgba(20, 24, 40, 0.08);
   flex: 0 0 auto;
 }
-.ws-col-labels { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(8, 1fr); }
-.ws-row-labels { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(8, 1fr); }
+.ws-col-labels { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(var(--ws-size), 1fr); }
+.ws-row-labels { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(var(--ws-size), 1fr); }
 .ws-col-labels span, .ws-row-labels span {
   display: flex;
   align-items: center;
@@ -607,14 +642,15 @@ html, body {
   width: var(--board);
   height: var(--board);
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-columns: repeat(var(--ws-size), 1fr);
+  grid-template-rows: repeat(var(--ws-size), 1fr);
   touch-action: none;
   cursor: crosshair;
 }
 .ws-board.is-locked { cursor: default; }
 
-/* 칸 하나 = 정확히 1/8 — 타일은 그 안쪽에 여백을 두고 뜬다 (오버레이 좌표와 칸 중심이 딱 맞게) */
+/* 칸 하나 = 정확히 1/N — 타일은 그 안쪽에 여백을 두고 뜬다 (오버레이 좌표와 칸 중심이 딱 맞게).
+   글자 크기는 칸 폭에 비례 (8×8 기준 값 × 8 / N) */
 .ws-cell { position: relative; padding: 2.5px; }
 .ws-tile {
   position: relative;
@@ -630,12 +666,12 @@ html, body {
   transition: background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 .ws-tile-main {
-  font-size: calc(var(--board) * 0.052);
+  font-size: calc(var(--board) * 0.416 / var(--ws-size));
   font-weight: 600;
   color: var(--tile-onset);
   line-height: 1;
 }
-.ws-tile.is-syllable .ws-tile-main { font-size: calc(var(--board) * 0.058); font-weight: 700; }
+.ws-tile.is-syllable .ws-tile-main { font-size: calc(var(--board) * 0.464 / var(--ws-size)); font-weight: 700; }
 
 .ws-tile.is-miss { background: var(--miss-bg); box-shadow: none; }
 .ws-tile.is-miss .ws-tile-main { color: var(--miss-text); }
@@ -649,6 +685,30 @@ html, body {
 .ws-tile.is-answer { background: var(--surface-danger); box-shadow: inset 0 0 0 1.5px var(--conflict); }
 .ws-tile.is-answer .ws-tile-main { color: var(--conflict); }
 
+/* 잠긴 칸 — 초성까지 가려짐. 자물쇠 그림 (익스텐디드 '잠긴 칸' · '대각선 잠김') */
+.ws-tile.is-hidden { background: var(--fog-bg); box-shadow: none; }
+.ws-tile.is-hidden::before {
+  content: '';
+  width: 38%;
+  height: 38%;
+  background: var(--fog-icon);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.8 0h3.4V5a1.7 1.7 0 0 0-3.4 0z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.8 0h3.4V5a1.7 1.7 0 0 0-3.4 0z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ws-tile.is-hidden .ws-tile-main { display: none; }
+/* 도넛 바다의 구멍 — 판이 아닌 칸 (보드 카드 바탕이 비쳐 보인다) */
+.ws-tile.is-hole { visibility: hidden; }
+/* 거리 두기 · 십자 · 연속 주황 · 회색 칸 금지 — 이번 추측에 못 쓰는 칸: 흐리게 + 빗금 */
+.ws-tile.is-blocked { opacity: 0.5; }
+.ws-tile.is-blocked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(135deg, var(--blocked-line) 0 1.5px, transparent 1.5px 6px);
+  pointer-events: none;
+}
+
 .ws-tile.is-selected { box-shadow: inset 0 0 0 2.5px var(--select); background-image: linear-gradient(var(--select-soft), var(--select-soft)); }
 .ws-tile.is-anchor { box-shadow: inset 0 0 0 2.5px var(--select); }
 /* 글자 순서 번호 — 선택 테두리(파랑)와 구분되게 진한 남색 동그라미 배지에 흰 숫자 */
@@ -658,8 +718,8 @@ html, body {
   left: -3px;
   z-index: 2;
   display: none;
-  width: calc(var(--board) * 0.04);
-  height: calc(var(--board) * 0.04);
+  width: calc(var(--board) * 0.32 / var(--ws-size));
+  height: calc(var(--board) * 0.32 / var(--ws-size));
   min-width: 15px;
   min-height: 15px;
   border-radius: 50%;
@@ -668,7 +728,7 @@ html, body {
   background: var(--order-bg);
   color: #ffffff;
   font-family: 'Outfit', 'Inter', sans-serif;
-  font-size: max(10px, calc(var(--board) * 0.026));
+  font-size: max(10px, calc(var(--board) * 0.208 / var(--ws-size)));
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 1px 3px rgba(20, 24, 40, 0.3);
@@ -798,6 +858,12 @@ html, body {
 .ws-history-num { width: 20px; font-size: 11px; font-weight: 700; color: rgba(var(--text-given-rgb), 0.4); text-align: right; }
 .ws-history-word { display: flex; gap: 3px; }
 .ws-history-where { margin-left: auto; font-size: 12px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.5); }
+.ws-history-cost { font-size: 11px; font-weight: 700; color: var(--conflict); }
+.ws-history-cost.is-bonus { color: var(--text-input); }
+/* 함선을 완성한 추측 — 초록 줄 */
+.ws-history-item.is-sunk { background: var(--cell-selected); box-shadow: inset 0 0 0 1.5px var(--text-input); }
+.ws-history-item.is-sunk .ws-history-num,
+.ws-history-item.is-sunk .ws-history-where { color: var(--text-sel); }
 .ws-chip {
   width: 26px;
   height: 26px;
@@ -812,6 +878,7 @@ html, body {
 .ws-chip--miss  { background: var(--miss-bg); color: rgba(var(--text-given-rgb), 0.55); }
 .ws-chip--hit   { background: var(--hit-bg); color: var(--hit-text); box-shadow: inset 0 0 0 1.5px var(--hit-line); }
 .ws-chip--match { background: var(--reveal-bg); color: var(--reveal-text); box-shadow: inset 0 0 0 1.5px var(--reveal-line); }
+.ws-chip--done  { background: var(--text-input); color: #ffffff; }
 
 /* 폰 — 함대 칸을 줄여 한 줄에 넣고, 모드·날짜 표시는 다음 줄 오른쪽으로 */
 @media (max-width: 440px) {
