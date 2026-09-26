@@ -31,7 +31,6 @@ const landingArchive  = $('landing-archive');
 const landingCard     = document.querySelector('.landing-card');
 const landingDate     = $('landing-date');
 const dailyCardStatus = { standard: $('daily-card-status'), extended: $('daily-card-status-extended'), idiom: $('daily-card-status-idiom') };
-const extendedCardDesc = $('daily-card-desc-extended');
 const dailyLoadNote   = $('daily-load-note');
 const dailyErrorEl    = $('daily-error');
 
@@ -607,11 +606,6 @@ function refreshLandingCard() {
       else { el.textContent = '플레이 전'; el.dataset.status = 'new'; }
     }
   }
-  // 익스텐디드 카드에 오늘의 기믹 이름 — 퍼즐 파일을 받아 와야 알 수 있다 (못 받으면 기본 설명 그대로)
-  const date = TODAY();
-  loadDailyPuzzle(date, MODES.extended).then((p) => {
-    if (date === TODAY() && p.gimmicks.length) extendedCardDesc.textContent = gimmickLine(p.gimmicks);
-  }).catch(() => {});
 }
 
 // ── 자유 연습 — 모드를 고르면 브라우저에서 즉석 생성 ──

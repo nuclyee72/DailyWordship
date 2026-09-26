@@ -151,10 +151,8 @@ try {
     await page.waitForSelector('.ws-cell');
     assert('사자성어 자유 연습 — 5척', await page.locator('.ws-fleet-ship').count() === 5);
 
-    // 익스텐디드 데일리 — 그날의 기믹 (오늘: ${ext.gimmicks})
+    // 익스텐디드 데일리 (오늘: ${ext.gimmicks})
     await page.click('#btn-go-landing');
-    await page.waitForFunction((label) => document.getElementById('daily-card-desc-extended').textContent.includes(label), GIMMICKS[ext.gimmicks[0]].label, { timeout: 5000 });
-    assert('익스텐디드 카드에 오늘의 기믹 이름', true);
     await page.click('#btn-daily-play-extended');
     await page.waitForSelector('.element-bookmark');
     assert(`익스텐디드 — 칸 ${extGeo.cellCount}개`, await page.locator('.ws-cell').count() === extGeo.cellCount);

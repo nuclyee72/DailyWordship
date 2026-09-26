@@ -1,14 +1,13 @@
 /**
  * hubApi.js — ProjectDaily 허브(/ProjectDaily/)가 카드 안에서 이 게임의 통계를 보여 줄 때 쓰는 모듈.
  * 게임 통계창과 같은 계산(storage · share)을 그대로 쓴다. DOM은 건드리지 않는다.
- * (세 게임 모두 같은 모양: stats · calendarShareText · todayShareText. 워드십만 dailyDesc를 더 둔다)
+ * (세 게임 모두 같은 모양: stats · calendarShareText · todayShareText)
  */
 import { dateStrKST } from './daily/dateUtil.js';
 import { summarize, loadProgress, distBuckets } from './daily/storage.js';
 import { buildCalendarShareText, buildShareText } from './daily/share.js';
 import { computeState, parsePuzzle } from './game/game.js';
 import { modeOf } from './game/modes.js';
-import { gimmickLine } from './game/gimmicks.js';
 
 const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
 
@@ -21,15 +20,6 @@ export function stats(mode) {
     distTitle: '사용한 추측 수',
     dist: buckets.map((label, i) => ({ label, count: s.distribution[i], fail: i === buckets.length - 1 })),
   };
-}
-
-/** 오늘의 퍼즐 카드 설명 — 기믹이 매일 바뀌는 모드(익스텐디드)면 그날의 기믹 이름, 아니면 null(고정 설명 그대로) */
-export async function dailyDesc(modeId) {
-  const mode = modeOf(modeId);
-  if (!mode.gimmicks) return null;
-  const res = await fetch(new URL(`../daily/${mode.fileName(dateStrKST())}.json`, import.meta.url), { cache: 'no-store' });
-  if (!res.ok) return null;
-  return gimmickLine(parsePuzzle(await res.json()).gimmicks) || null;
 }
 
 /** 📋 달력 공유 문구 */
