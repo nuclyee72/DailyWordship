@@ -9,7 +9,7 @@
 let _rng = Math.random;
 
 /** 문자열 → 32bit 해시 (cyrb53 축약판) */
-function hashStr(str) {
+export function hashStr(str) {
   let h1 = 0xdeadbeef ^ str.length;
   let h2 = 0x41c6ce57 ^ str.length;
   for (let i = 0; i < str.length; i++) {

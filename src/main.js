@@ -501,7 +501,9 @@ guessForm.addEventListener('submit', async (e) => {
 function afterGuess() {
   renderGame();
   persist();
-  setMessage('');
+  // 도넛 바다 — 함선이 1척 남아 그 함선 칸 하나가 주황으로 열렸다
+  const donutHint = state.status === 'playing' ? state.results[state.results.length - 1]?.donutHint : null;
+  setMessage(donutHint != null ? `${GIMMICKS.donut.icon} 마지막 함선 — ${session.geo.cellLabel(donutHint)} 칸 주황 공개` : '');
   if (state.status !== 'playing' && !resultShown) {
     resultShown = true;
     wordInput.blur();

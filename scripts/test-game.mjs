@@ -101,7 +101,7 @@ test('칸별 판정 — 명중·음절·빈칸', () => {
   const s = computeState(P, [g(0, 0, 'h', '바람새')]);
   eq(s.revealed.slice(0, 3), ['바', null, '새']);
   eq(s.hit.slice(0, 3), [true, true, true]);
-  eq(s.results[0], { newCells: [0, 2], newHits: [0, 1, 2], completedShips: [], cost: 1, penalty: 0, usedOrange: false, usedYellow: false });
+  eq(s.results[0], { newCells: [0, 2], newHits: [0, 1, 2], completedShips: [], cost: 1, penalty: 0, usedOrange: false, usedYellow: false, donutHint: null });
   eq(s.used, 1);
   const s2 = computeState(P, [g(1, 0, 'h', '아아아')]);
   eq(s2.miss.slice(8, 11), [true, true, true]);
@@ -428,6 +428,22 @@ test('판 크기 기믹 — 7×7 · 10×10 · 12×12 도넛(가운데 4×4 구�
   const v = validateGuess(p, [], { r: 3, c: 3, dir: 'd', len: 3 }, '아아아', null);
   ok(!v.ok && v.reason.includes('구멍'), v.reason);
   ok(validateGuess(p, [], { r: 0, c: 0, dir: 'h', len: 4 }, '아아아아', null).ok, '테두리 쪽은 가능');
+});
+
+test('도넛 바다 — 함선이 1척 남으면 그 함선 칸 하나 주황 (한 번만)', () => {
+  const p = withG(['donut']);
+  const ship1 = [7, 15, 23, 31]; // 고속도로 칸
+  const s1 = computeState(p, [g(0, 0, 'h', '바다새')]);
+  const hint = s1.results[0].donutHint;
+  ok(ship1.includes(hint), `남은 함선 칸이어야 함: ${hint}`);
+  eq([s1.hit[hint], s1.revealed[hint], s1.status], [true, null, 'playing'], '주황(명중 · 글자 미공개)');
+  eq(computeState(p, [g(0, 0, 'h', '바다새')]).results[0].donutHint, hint, '같은 추측이면 같은 칸');
+  // 이미 명중한 칸은 다시 고르지 않는다 — 가로 d1(3)~… 대신 h1·h2를 먼저 맞혀 둠
+  const s2 = computeState(p, [g(0, 7, 'v', '가사'), g(0, 0, 'h', '바다새')]);
+  ok([23, 31].includes(s2.results[1].donutHint), '아직 안 맞은 칸만');
+  const s3 = computeState(p, [g(0, 0, 'h', '바다새'), g(0, 7, 'v', '고속도로')]);
+  eq([s3.results[1].donutHint, s3.status], [null, 'won'], '한 번만 · 마지막 격침엔 없음');
+  eq(computeState(P, [g(0, 0, 'h', '바다새')]).results[0].donutHint, null, '도넛 아니면 없음');
 });
 
 test('제약이 겹쳐 둘 곳이 없으면 그 한 번은 풀림', () => {

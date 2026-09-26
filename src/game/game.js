@@ -9,6 +9,7 @@
  * 같은 입력이면 언제나 같은 결과가 나온다.
  */
 import { onsetOf } from '../core/hangul.js';
+import { hashStr } from '../core/random.js';
 import { MIN_BOX, MAX_BOX, DEFAULT_SIZE, DIR_ARROW, geoOf, sameBox } from './board.js';
 import { GIMMICKS, hasGimmick, CHECKPOINTS, CHECKPOINT_PENALTY, GRAY_EVERY, START_PENALTY, reserveNeed } from './gimmicks.js';
 
@@ -178,6 +179,8 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
  * 완성(초록) — 함선 자리에 함선 이름을 정확히 입력했을 때만. 글자가 전부 노랑이어도 이름을 입력해야 초록.
  * 추측 소모 — 보통 1번. 기믹에 따라 벌점이 붙는다 (guessCost). '보급 부족'이면 시작부터 3번 쓴 상태.
  *   이스터에그 단어(BONUS_WORDS)는 cost −1 — 오히려 1번 늘어난다 (기믹 벌점은 그대로).
+ * '도넛 바다' — 함선이 1척만 남는 순간, 그 함선의 아직 명중하지 않은 칸 하나를 주황(명중)으로 연다 (한 판에 한 번).
+ *   고르는 칸은 함선마다 정해진 '랜덤' — 같은 퍼즐 · 같은 추측이면 언제나 같은 칸.
  * '미답 해역' — 한 번도 추측하지 않은 칸이 reserveNeed 밑으로 떨어지면 되돌릴 수 없으니 그 즉시 실패(lostBy 'reserve').
  *   함대를 다 찾은 추측이라도 그 추측으로 모자라게 되면 실패다.
  * @returns {{
@@ -185,8 +188,9 @@ export function validateGuess(puzzle, guesses, box, rawWord, dict) {
  *   hit: boolean[],              함선 칸으로 확인됨 (음절 공개 칸 포함)
  *   miss: boolean[],             빈 칸으로 확인됨
  *   completed: boolean[],        함선별 완성 여부
- *   results: { newCells, newHits, completedShips: number[], cost, penalty: number, usedOrange, usedYellow: boolean }[],
+ *   results: { newCells, newHits, completedShips: number[], cost, penalty: number, usedOrange, usedYellow: boolean, donutHint: number|null }[],
  *                                추측마다 새로 얻은 것 · 쓴 횟수 · 주황/노랑 칸을 지나갔는지('연속 주황/노랑 금지')
+ *                                · '도넛 바다'로 이 추측 뒤 주황으로 열린 칸
  *   used: number,                쓴 추측 수 (벌점 반영) — 한도와 비교하는 값
  *   untouched: number,           한 번도 추측하지 않은 칸 수 (구멍 제외) · reserveNeed: '미답 해역'이면 필요한 수, 아니면 0
  *   status: 'playing'|'won'|'lost',  lostBy: 'guesses'(추측을 다 씀) | 'reserve'(안 쓴 칸 부족) | null
@@ -206,6 +210,7 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
   const touched = new Array(geo.cellCount).fill(false);
   let untouched = geo.cellCount - (puzzle.holes?.length ?? 0);
   const need = hasGimmick(puzzle, 'reserve') ? reserveNeed(puzzle) : 0;
+  let donutHintLeft = hasGimmick(puzzle, 'donut');
 
   for (const g of guesses) {
     if (status !== 'playing') break;
@@ -239,10 +244,22 @@ export function computeState(puzzle, guesses, { maxGuesses = MAX_GUESSES } = {})
       completed[s] = true;
       completedShips.push(s);
     });
+    // 도넛 바다: 함선이 1척만 남으면 그 함선의 가려진 칸 하나를 주황으로
+    let donutHint = null;
+    const left = completed.flatMap((done, s) => (done ? [] : [s]));
+    if (donutHintLeft && left.length === 1) {
+      donutHintLeft = false;
+      const ship = puzzle.ships[left[0]];
+      const candidates = geo.boxCells(ship).filter((idx) => !hit[idx]);
+      if (candidates.length) {
+        donutHint = candidates[hashStr(`donut:${ship.name}:${ship.r},${ship.c},${ship.dir}`) % candidates.length];
+        hit[donutHint] = true;
+      }
+    }
     const { cost: baseCost, penalty } = guessCost(puzzle, g.len, completedShips.length > 0, results.length + 1);
     const cost = BONUS_WORDS.has(g.word) ? -1 : baseCost;
     used += cost + penalty;
-    results.push({ newCells, newHits, completedShips, cost, penalty, usedOrange: orangeBefore.length > 0, usedYellow: yellowBefore });
+    results.push({ newCells, newHits, completedShips, cost, penalty, usedOrange: orangeBefore.length > 0, usedYellow: yellowBefore, donutHint });
     if (untouched < need) { status = 'lost'; lostBy = 'reserve'; } // 되돌릴 수 없다 — 함대를 다 찾았어도 실패
     else if (completed.every(Boolean)) status = 'won';
     else if (used >= maxGuesses) { status = 'lost'; lostBy = 'guesses'; }

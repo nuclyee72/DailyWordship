@@ -17,7 +17,7 @@ export const GIMMICKS = {
   narrow: { id: 'narrow', group: '판', icon: '🏝️', label: '좁은 바다', short: '7×7', size: 7,
     help: '판 7×7' },
   donut: { id: 'donut', group: '판', icon: '🍩', label: '도넛 바다', short: '12×12 · 구멍', size: 12, hole: 4,
-    help: '판 12×12, 가운데 4×4 구멍 (함선 없음 · 통과 불가)' },
+    help: '판 12×12, 가운데 4×4 구멍 (함선 없음 · 통과 불가) · 함선 1척 남으면 그 함선 칸 하나 주황 공개' },
   // ── 함대 ──
   extra4: { id: 'extra4', group: '함대', icon: '🚢', label: '4칸 증원', short: '+1척', extra: 4,
     help: '4칸 함선 1척 추가' },
