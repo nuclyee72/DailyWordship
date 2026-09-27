@@ -121,7 +121,7 @@ try {
 
     // 자유 연습 — 모드 선택 창
     await page.click('#btn-free-play');
-    await page.click('#freeplay-mode-modal .daily-card[data-mode="standard"]');
+    await page.click('#landing-free .daily-card[data-mode="standard"]');
     await page.waitForSelector('.ws-cell');
     assert('자유 연습 퍼즐 생성', (await page.textContent('#ws-mode-label')) === '스탠다드 · 자유 연습');
     await page.evaluate(() => window.__solve());
@@ -147,7 +147,7 @@ try {
     await page.click('#daily-stats-close');
     // 자유 연습 사자성어
     await page.click('#btn-free-play');
-    await page.click('#freeplay-mode-modal .daily-card[data-mode="idiom"]');
+    await page.click('#landing-free .daily-card[data-mode="idiom"]');
     await page.waitForSelector('.ws-cell');
     assert('사자성어 자유 연습 — 5척', await page.locator('.ws-fleet-ship').count() === 5);
 

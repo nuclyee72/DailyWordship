@@ -36,8 +36,7 @@ const dailyErrorEl    = $('daily-error');
 
 const btnDailyPlay    = { standard: $('btn-daily-play'), extended: $('btn-daily-play-extended'), idiom: $('btn-daily-play-idiom') };
 const btnFreePlay     = $('btn-free-play');
-const freeplayModeModal = $('freeplay-mode-modal');
-const btnFreeplayModeCancel = $('btn-freeplay-mode-cancel');
+const landingFree     = $('landing-free');
 const archiveTypeBtns = document.querySelectorAll('#landing-archive .archive-type');
 const statsTabBtns    = document.querySelectorAll('#daily-stats-modal .daily-stats-tab');
 const btnArchive      = $('btn-archive');
@@ -109,6 +108,7 @@ function showLanding() {
   landingScreen.classList.remove('hidden');
   landingMain.hidden = false;
   landingArchive.hidden = true;
+  landingFree.hidden = true;
   landingCard.classList.remove('landing-card--archive');
   wordInput.blur();
   refreshLandingCard();
@@ -622,13 +622,13 @@ async function startFreePlay(modeId, pickedGimmicks = null) {
     backToMain();
   }
 }
-btnFreePlay.addEventListener('click', () => openPanel(freeplayModeModal));
-// 모드 고르기를 취소하면 메인 화면으로 — 배포 주소·허브에서 온 탭이면 허브
-const cancelFreePlayModeModal = () => { if (HUB_ONLY) goHub(); else if (!leaveToHub()) closePanel(freeplayModeModal); };
-btnFreeplayModeCancel.addEventListener('click', cancelFreePlayModeModal);
-freeplayModeModal.addEventListener('click', (e) => { if (e.target === freeplayModeModal) cancelFreePlayModeModal(); });
-freeplayModeModal.querySelectorAll('.daily-card').forEach((btn) => {
-  btn.addEventListener('click', () => { closePanel(freeplayModeModal); startFreePlay(btn.dataset.mode); });
+// 모드 고르기는 랜딩 카드 안(#landing-free)에서 — 메인과 바꿔 보여 준다
+btnFreePlay.addEventListener('click', () => {
+  landingMain.hidden = true;
+  landingFree.hidden = false;
+});
+landingFree.querySelectorAll('.daily-card').forEach((btn) => {
+  btn.addEventListener('click', () => startFreePlay(btn.dataset.mode));
 });
 
 btnGoLanding.addEventListener('click', backToMain);
