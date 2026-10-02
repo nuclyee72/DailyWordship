@@ -538,11 +538,14 @@ test('기믹 없는 모드의 생성 결과는 예전과 같음 (잠금 추첨�
   eq([p.size, p.gimmicks, p.locked, p.holes], [8, [], [], []]);
 });
 
-test('통계 분포 구간 — 스탠다드 5번씩 · 익스텐디드 첫 구간 1~10 · 한도 35', () => {
+test('통계 분포 구간 — 추측 한도에서 아래로 2번씩 6구간 · 한도 35', () => {
   eq(MODES.extended.maxGuesses, 35);
-  eq(distBuckets('standard'), ['1~5번', '6~10번', '11~15번', '16~20번', '21~25번', '26~30번', '실패']);
-  eq(distBuckets('extended'), ['1~10번', '11~15번', '16~20번', '21~25번', '26~30번', '31~35번', '실패']);
-  eq(bucketIndexFor('solved', 7, 'standard'), 1);
+  eq(distBuckets('standard'), ['1~20번', '21~22번', '23~24번', '25~26번', '27~28번', '29~30번', '실패']);
+  eq(distBuckets('extended'), ['1~25번', '26~27번', '28~29번', '30~31번', '32~33번', '34~35번', '실패']);
+  eq(distBuckets('idiom'), ['1~10번', '11~12번', '13~14번', '15~16번', '17~18번', '19~20번', '실패']);
+  eq(bucketIndexFor('solved', 7, 'standard'), 0);
+  eq(bucketIndexFor('solved', 21, 'standard'), 1);
+  eq(bucketIndexFor('solved', 30, 'standard'), 5);
   eq(bucketIndexFor('solved', 7, 'extended'), 0);
   eq(bucketIndexFor('solved', 36, 'extended'), 5);
   eq(bucketIndexFor('solved', 41, 'extended'), 5, '한도 넘어도 마지막 성공 구간');

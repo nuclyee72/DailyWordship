@@ -5,6 +5,12 @@
 import { FLEET, MAX_GUESSES } from './game.js';
 import { DEFAULT_MIN_DECOYS } from './generator.js';
 
+/**
+ * 통계 '사용한 추측 수' 구간의 위쪽 끝 — 추측 한도에서 아래로 2번씩 6구간.
+ * 30 → [20, 22, 24, 26, 28, 30] = '1~20번' '21~22번' … '29~30번' (대부분 한도 가까이에서 끝나므로 위쪽을 촘촘하게)
+ */
+const topBounds = (max, count = 6, step = 2) => Array.from({ length: count }, (_, i) => max - (count - 1 - i) * step);
+
 export const MODES = {
   standard: {
     id: 'standard',
@@ -17,7 +23,7 @@ export const MODES = {
     fileName: (date) => date,   // daily/<date>.json
     minDecoys: DEFAULT_MIN_DECOYS,
     gimmicks: false,
-    distBounds: [5, 10, 15, 20, 25, 30], // 통계 '사용한 추측 수' 구간의 위쪽 끝
+    distBounds: topBounds(MAX_GUESSES),
   },
   extended: {
     id: 'extended',
@@ -30,7 +36,7 @@ export const MODES = {
     fileName: (date) => `extended-${date}`,
     minDecoys: DEFAULT_MIN_DECOYS,
     gimmicks: true,             // 그날의 기믹 2개 — src/game/gimmicks.js dailyGimmicks
-    distBounds: [10, 15, 20, 25, 30, 35], // 10번 안에 푸는 일은 드물어 첫 구간을 넓게
+    distBounds: topBounds(35),
   },
   idiom: {
     id: 'idiom',
@@ -44,7 +50,7 @@ export const MODES = {
     // 2·3칸 함선이 없으니 4칸 미끼만 본다. 자연 발생은 판당 중앙값 7개 — 모자라면 생성기가 심는다
     minDecoys: { 2: 0, 3: 0, 4: 5 },
     gimmicks: false,
-    distBounds: [5, 10, 15, 20, 25, 30],
+    distBounds: topBounds(20),
   },
 };
 export const MODE_IDS = Object.keys(MODES);
