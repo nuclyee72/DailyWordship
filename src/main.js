@@ -1,6 +1,6 @@
 import { dateStrKST, shiftDateStr, msUntilNextReset, formatCountdown } from './daily/dateUtil.js';
 import { loadProgress, saveProgress, recordResult, summarize, distBuckets } from './daily/storage.js';
-import { buildShareText, buildFleetGrid, buildSummaryLine, buildCalendarShareText } from './daily/share.js';
+import { buildShareText, buildFleetGrid, buildSummaryLine, buildCalendarShareText, shareTitle } from './daily/share.js';
 import { buildAnswerPool, buildGuessDictionary, fetchWordTexts } from './core/dictionary.js';
 import { onsetOf } from './core/hangul.js';
 import { geoOf, DIR_ARROW } from './game/board.js';
@@ -11,7 +11,6 @@ import { BoardRenderer } from './ui/BoardRenderer.js';
 import { playEasterEgg } from './ui/easterEgg.js';
 import { initHub, leaveToHub, goHub, saveDarkMode } from './hub.js';
 
-const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
 const DAILY_FIRST_DATE = '2026-09-23'; // 아카이브에서 고를 수 있는 가장 이른 날짜
 const TODAY = () => dateStrKST();
 // 배포 주소에선 메인 화면 = 허브 카드 (index.html <head>가 표시) — 게임 자체 랜딩은 로컬 개발에서만
@@ -185,12 +184,9 @@ function renderCoordLabels(size) {
 }
 renderCoordLabels(8);
 
-/** 공유 제목 — '데일리 워드십 · 2026-09-24', '데일리 워드십 · 사자성어 · 2026-09-24', '데일리 워드십 · 사자성어 · 자유 연습' */
-function titleFor(mode, dateOrLabel) {
-  return ['데일리 워드십', mode.id === 'standard' ? null : mode.label, dateOrLabel].filter(Boolean).join(' · ');
-}
+/** 공유 제목 — '데일리 워드십 · 스탠다드 · 2026-09-24', '데일리 워드십 · 사자성어 · 자유 연습' */
 function sessionTitle() {
-  return titleFor(session.mode, session.kind === 'free' ? '자유 연습' : session.date);
+  return shareTitle(session.mode, session.kind === 'free' ? '자유 연습' : session.date);
 }
 
 function persist() {
@@ -563,7 +559,7 @@ btnDailyResultClose.addEventListener('click', () => closePanel(dailyResultModal)
 dailyResultModal.addEventListener('click', (e) => { if (e.target === dailyResultModal) closePanel(dailyResultModal); });
 btnDailyResultStats.addEventListener('click', () => { closePanel(dailyResultModal); openStatsModal(); });
 btnDailyResultShare.addEventListener('click', async () => {
-  const text = buildShareText({ title: sessionTitle(), puzzle: session.puzzle, state, url: SITE_URL, maxGuesses: session.mode.maxGuesses });
+  const text = buildShareText({ title: sessionTitle(), puzzle: session.puzzle, state, maxGuesses: session.mode.maxGuesses });
   const ok = await copyText(text);
   dailyShareNote.textContent = ok ? '클립보드에 복사했어요!' : '복사에 실패했어요.';
 });
@@ -817,8 +813,7 @@ btnCalShare.addEventListener('click', async () => {
   const { y, m } = statsCal.monthYM();
   const mode = modeOf(statsMode);
   const text = buildCalendarShareText({
-    results: summarize(TODAY(), mode.id).results, year: y, month: m, url: SITE_URL,
-    label: mode.id === 'standard' ? '' : mode.label,
+    results: summarize(TODAY(), mode.id).results, year: y, month: m, label: mode.label,
   });
   calShareNote.textContent = (await copyText(text)) ? '복사했어요!' : '복사 실패';
 });
@@ -828,7 +823,7 @@ btnDailyStatsShare.addEventListener('click', async () => {
   if (!p || p.status === 'playing') { dailyStatsShareNote.textContent = '오늘 퍼즐을 먼저 풀어주세요.'; return; }
   const puzzle = await loadDailyPuzzle(TODAY(), mode);
   const st = computeState(puzzle, p.guesses, { maxGuesses: mode.maxGuesses });
-  const text = buildShareText({ title: titleFor(mode, TODAY()), puzzle, state: st, url: SITE_URL, maxGuesses: mode.maxGuesses });
+  const text = buildShareText({ title: shareTitle(mode, TODAY()), puzzle, state: st, maxGuesses: mode.maxGuesses });
   dailyStatsShareNote.textContent = (await copyText(text)) ? '복사했어요!' : '복사 실패';
 });
 

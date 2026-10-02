@@ -1,10 +1,28 @@
 /**
  * share.js — 결과 공유 텍스트 + 월별 캘린더 공유.
  * (DailyTrilateral/src/daily/share.js 이식 — 캘린더 부분은 그대로, 결과 부분은 함선별 칸 그림으로)
+ *
+ * 공유 텍스트 형식 (ProjectDaily 네 게임 공통 — 제목 · 결과 줄 · 그림 · 허브 링크):
+ *   데일리 워드십 · 스탠다드 · 2026-10-02
+ *   (익스텐디드면 그날의 기믹 줄)
+ *   ✅ 🚢 6/6 · 추측 14/30
+ *   (빈 줄)
+ *   <함선 그림>
+ *   (빈 줄)
+ *   <허브 링크>
  */
 import { MAX_GUESSES } from '../game/game.js';
 import { geoOf } from '../game/board.js';
 import { gimmickLine } from '../game/gimmicks.js';
+
+export const GAME_TITLE = '데일리 워드십';
+/** 공유 링크 — 허브의 이 게임 카드 (네 게임 공통) */
+export const SHARE_URL = 'https://nuclyee72.github.io/ProjectDaily/#wordship';
+
+/** 공유 제목 — '데일리 워드십 · 사자성어 · 2026-09-24' / '… · 자유 연습' (모드는 스탠다드도 늘 쓴다) */
+export function shareTitle(mode, where) {
+  return [GAME_TITLE, mode.label, where].join(' · ');
+}
 
 const PAD = '　'; // 전각 공백 — 이모지 한 칸 폭과 비슷해서 줄 맞춤에 쓴다
 
@@ -32,18 +50,17 @@ export function buildFleetGrid(puzzle, state) {
   return rows.join('\n');
 }
 
-/** 결과 요약 한 줄 — '🚢 6/6 · 추측 14/20' (추측 수는 '비싼 추측' 벌점 포함) */
+/** 결과 요약 한 줄 — '✅ 🚢 6/6 · 추측 14/20' (실패 ❌, 추측 수는 '비싼 추측' 벌점 포함) */
 export function buildSummaryLine(state, shipCount, maxGuesses = MAX_GUESSES) {
   const found = state.completed.filter(Boolean).length;
-  return `🚢 ${found}/${shipCount} · 추측 ${state.used}/${maxGuesses}`;
+  const mark = state.status === 'won' ? '✅ ' : state.status === 'lost' ? '❌ ' : '';
+  return `${mark}🚢 ${found}/${shipCount} · 추측 ${state.used}/${maxGuesses}`;
 }
 
-/** 공유용 전체 텍스트. title 예: '데일리 워드십 · 2026-09-24'. 익스텐디드면 그날의 기믹 줄이 붙는다 */
-export function buildShareText({ title, puzzle, state, url, maxGuesses }) {
+/** 공유용 전체 텍스트. title = shareTitle(…). 익스텐디드면 그날의 기믹 줄이 붙는다 */
+export function buildShareText({ title, puzzle, state, maxGuesses }) {
   const gimmicks = puzzle.gimmicks?.length ? [gimmickLine(puzzle.gimmicks)] : [];
-  const parts = [title, ...gimmicks, buildSummaryLine(state, puzzle.ships.length, maxGuesses), buildFleetGrid(puzzle, state), ''];
-  if (url) parts.push(url);
-  return parts.join('\n');
+  return [title, ...gimmicks, buildSummaryLine(state, puzzle.ships.length, maxGuesses), '', buildFleetGrid(puzzle, state), '', SHARE_URL].join('\n');
 }
 
 const CAL_EMOJI = { solved: '🟩', fail: '🟥', miss: '⬜', pad: '⬛' };
@@ -52,7 +69,7 @@ const CAL_EMOJI = { solved: '🟩', fail: '🟥', miss: '⬜', pad: '⬛' };
  * 통계 달력을 이모지 텍스트로. results = { 'YYYY-MM-DD': { status, ... } }
  * 성공 🟩 · 실패 🟥 · 안 함 ⬜ · 달 밖(주 정렬용) ⬛
  */
-export function buildCalendarShareText({ results, year, month, url, label = '' }) {
+export function buildCalendarShareText({ results, year, month, label }) {
   const firstDow    = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const cells = [];
@@ -69,8 +86,6 @@ export function buildCalendarShareText({ results, year, month, url, label = '' }
   const rows = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7).join(''));
 
-  const head = `데일리 워드십${label ? ` · ${label}` : ''} · ${year}-${String(month).padStart(2, '0')}`;
-  const parts = [head, `✅ ${wins}  ❌ ${fails}`, '', ...rows, ''];
-  if (url) parts.push(url);
-  return parts.join('\n');
+  const head = [GAME_TITLE, label, `${year}-${String(month).padStart(2, '0')}`].join(' · ');
+  return [head, `✅ ${wins}  ❌ ${fails}`, '', ...rows, '', SHARE_URL].join('\n');
 }

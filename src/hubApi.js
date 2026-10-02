@@ -5,11 +5,9 @@
  */
 import { dateStrKST } from './daily/dateUtil.js';
 import { summarize, loadProgress, distBuckets } from './daily/storage.js';
-import { buildCalendarShareText, buildShareText } from './daily/share.js';
+import { buildCalendarShareText, buildShareText, shareTitle } from './daily/share.js';
 import { computeState, parsePuzzle } from './game/game.js';
 import { modeOf } from './game/modes.js';
-
-const SITE_URL = 'https://nuclyee72.github.io/DailyWordship/';
 
 /** 숫자 4개 + 분포 막대 */
 export function stats(mode) {
@@ -26,7 +24,7 @@ export function stats(mode) {
 export function calendarShareText(modeId, year, month) {
   const mode = modeOf(modeId);
   const { results } = summarize(dateStrKST(), mode.id);
-  return buildCalendarShareText({ results, year, month, url: SITE_URL, label: mode.id === 'standard' ? '' : mode.label });
+  return buildCalendarShareText({ results, year, month, label: mode.label });
 }
 
 /** 오늘 결과 공유 문구 — 오늘 그 모드를 아직 안 끝냈으면 null */
@@ -39,6 +37,5 @@ export async function todayShareText(modeId) {
   if (!res.ok) throw new Error(`${today} 퍼즐을 찾을 수 없음`);
   const puzzle = parsePuzzle(await res.json());
   const state = computeState(puzzle, p.guesses, { maxGuesses: mode.maxGuesses });
-  const title = ['데일리 워드십', mode.id === 'standard' ? null : mode.label, today].filter(Boolean).join(' · ');
-  return buildShareText({ title, puzzle, state, url: SITE_URL, maxGuesses: mode.maxGuesses });
+  return buildShareText({ title: shareTitle(mode, today), puzzle, state, maxGuesses: mode.maxGuesses });
 }
