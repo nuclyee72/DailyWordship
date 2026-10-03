@@ -237,13 +237,15 @@ test('사자성어 퍼즐 30개 — 4칸 5척, 함명 전부 사자성어, 같�
 
 // ── 주제 ──
 const themeWords = loadThemeWords();
-test('주제 목록 — 11개 전부 데이터 있음, 단어는 전부 출제 풀 안, 길이별로 함대(증원 포함)를 채울 만큼', () => {
+test('주제 목록 — 11개 전부 데이터 있음, 단어는 전부 출제 풀 안, 길이별로 함대(증원 포함)를 채울 만큼 · 주제마다 100개 이상', () => {
   eq(Object.keys(themeWords).sort(), [...THEME_IDS].sort());
   for (const id of THEME_IDS) {
     for (const w of themeWords[id]) ok(pool.words[w.length]?.includes(w), `${id}: ${w} 출제 풀 밖`);
     const byLen = (len) => [...themeWords[id]].filter((w) => w.length === len).length;
     // 기본 함대 4·3·3·3·2·2 + 증원 1척까지 — 넉넉하게 한 바퀴(11일)마다 같은 함명이 덜 겹치게
     ok(byLen(4) >= 4 && byLen(3) >= 8 && byLen(2) >= 10, `${id}: 길이별 ${[2, 3, 4].map(byLen).join('/')}`);
+    // 같은 주제가 돌아와도 함명이 덜 반복되게 — 주제마다 100개 이상
+    ok(themeWords[id].size >= 100, `${id}: ${themeWords[id].size}개 (100개 이상)`);
   }
 });
 test('그날의 주제 — 결정적 · 모드마다 따로 · 11일에 11개 전부 · 이틀 연속 같은 주제 없음', () => {

@@ -140,11 +140,11 @@ async function main() {
 
   const blocklist = new Set(await readCurated('blocklist.txt'));
   const loanHomographs = await readCurated('loan-homographs.txt');
-  const extra3 = await readCurated('answers-3-extra.txt');
-  const extra4 = await readCurated('answers-4-extra.txt');
-  checkLengths('answers-3-extra.txt', extra3, 3);
-  checkLengths('answers-4-extra.txt', extra4, 4);
-  const extras = { 2: [], 3: extra3, 4: extra4 };
+  const extras = {};
+  for (const len of LENGTHS) {
+    extras[len] = await readCurated(`answers-${len}-extra.txt`);
+    checkLengths(`answers-${len}-extra.txt`, extras[len], len);
+  }
 
   // 사자성어 모드 출제 풀
   const idiomsCurated = await readCurated('idioms-extra.txt');
