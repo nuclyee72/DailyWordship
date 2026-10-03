@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WORD_LENGTHS, buildAnswerPool, buildGuessDictionary } from '../../src/core/dictionary.js';
 import { modeOf } from '../../src/game/modes.js';
+import { buildThemeWords } from '../../src/game/themes.js';
 
 const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'data');
 const read = (name) => readFileSync(path.join(DATA_DIR, name), 'utf8');
@@ -14,4 +15,6 @@ export const loadAnswerPool = (modeId = 'standard') => {
   const mode = modeOf(modeId);
   return mode.answersFile ? buildAnswerPool({ 4: read(mode.answersFile) }) : buildAnswerPool(readTexts('answers'), read('answers-simple.txt'));
 };
+/** 주제별 단어 Set — src/data/themes.json */
+export const loadThemeWords = () => buildThemeWords(JSON.parse(read('themes.json')));
 export const loadGuessDictionary = () => buildGuessDictionary(readTexts('guesses'), read('compound-parts.txt'));

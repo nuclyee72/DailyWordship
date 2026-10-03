@@ -7,6 +7,7 @@ import { geoOf, DIR_ARROW } from './game/board.js';
 import { computeState, validateGuess, shipMap, cellOutcomes, parsePuzzle, guessRules, boxProblem } from './game/game.js';
 import { MODES, modeOf } from './game/modes.js';
 import { GIMMICKS, gimmickLine, randomGimmicks, CHECKPOINTS, GRAY_EVERY } from './game/gimmicks.js';
+import { themeLabel, randomTheme, buildThemeWords } from './game/themes.js';
 import { BoardRenderer } from './ui/BoardRenderer.js';
 import { playEasterEgg } from './ui/easterEgg.js';
 import { initHub, leaveToHub, goHub, saveDarkMode } from './hub.js';
@@ -50,6 +51,7 @@ const btnNewFree      = $('btn-new-free');
 const boardEl     = $('ws-board');
 const fleetEl     = $('ws-fleet');
 const modeLabelEl = $('ws-mode-label');
+const themeLabelEl = $('ws-theme-label');
 const gameEl      = document.querySelector('.ws-game');
 const elementSidebar = $('element-sidebar');
 const relaxedNoteEl  = $('ws-relaxed-note');
@@ -152,6 +154,18 @@ const loadAnswerPool = (mode) => {
   }
   return answerPoolPromises.get(key);
 };
+// 주제별 단어 — 자유 연습에서만 필요 (데일리 파일엔 주제가 이미 들어 있다)
+let themeWordsPromise = null;
+const loadThemeWords = () => {
+  themeWordsPromise ??= fetch('src/data/themes.json').then((res) => {
+    if (!res.ok) throw new Error(`themes.json 불러오기 실패 (${res.status})`);
+    return res.json();
+  }).then(buildThemeWords).catch((err) => {
+    themeWordsPromise = null;
+    throw err;
+  });
+  return themeWordsPromise;
+};
 
 // ── 데일리 퍼즐 로딩(캐시) ──
 const puzzleCache = new Map();
@@ -246,6 +260,10 @@ function renderGame() {
   guessesLeftEl.parentElement.classList.toggle('is-low', playing && left <= 3);
   const where = session.kind === 'free' ? '자유 연습' : session.kind === 'archive' ? `${session.date} · 지난 퍼즐` : session.date;
   modeLabelEl.textContent = `${session.mode.label} · ${where}`;
+  // 오늘의 주제 — 주제 단어가 모자라 일반 단어로 채운 함선이 있으면 몇 척이 주제인지도
+  const { theme, themeShips, ships } = session.puzzle;
+  themeLabelEl.hidden = !theme;
+  if (theme) themeLabelEl.textContent = `${themeLabel(theme)}${themeShips < ships.length ? ` (${ships.length}척 중 ${themeShips}척)` : ''}`;
 
   renderFleet();
   renderGimmickStatus();
@@ -608,9 +626,15 @@ function refreshLandingCard() {
 async function startFreePlay(modeId, pickedGimmicks = null) {
   const mode = modeOf(modeId);
   try {
-    const [pool, { generatePuzzle }] = await Promise.all([loadAnswerPool(mode), import('./game/generator.js')]);
+    const [pool, { generatePuzzle }, themeWords] = await Promise.all([
+      loadAnswerPool(mode), import('./game/generator.js'), mode.themed ? loadThemeWords() : null,
+    ]);
     const gimmicks = mode.gimmicks ? (pickedGimmicks ?? randomGimmicks()) : [];
-    const puzzle = generatePuzzle(`free:${Date.now()}:${Math.random()}`, pool, { fleet: mode.fleet, minDecoys: mode.minDecoys, gimmicks });
+    // 주제도 판마다 아무거나 (데일리처럼 몇 척이 주제 함선인지 세어 둔다)
+    const themeId = themeWords && randomTheme();
+    const theme = themeId && { id: themeId, words: themeWords[themeId] };
+    const puzzle = generatePuzzle(`free:${Date.now()}:${Math.random()}`, pool, { fleet: mode.fleet, minDecoys: mode.minDecoys, gimmicks, theme });
+    if (theme) puzzle.themeShips = puzzle.ships.filter((s) => theme.words.has(s.name)).length;
     openGame({ kind: 'free', date: '자유 연습', mode: mode.id, puzzle, guesses: [] });
   } catch (err) {
     dailyErrorEl.textContent = '자유 연습 퍼즐을 만들지 못했어요.';

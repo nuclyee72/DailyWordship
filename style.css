@@ -597,6 +597,9 @@ html, body {
 .ws-fleet-ship.is-done i { background: var(--cell-selected); box-shadow: inset 0 0 0 1.5px var(--text-input); }
 .ws-fleet-ship.is-answer i { color: rgba(var(--text-given-rgb), 0.6); box-shadow: inset 0 0 0 1.5px rgba(var(--text-given-rgb), 0.35); }
 .ws-mode-label { font-size: 12px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.5); white-space: nowrap; }
+/* 오늘의 주제 — 모드·날짜 표시 바로 왼쪽 */
+.ws-theme-label { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text-input); white-space: nowrap; }
+.ws-theme-label[hidden] { display: none; }
 .ws-relaxed-note { flex: 1 0 100%; order: 3; margin: 0; font-size: 11px; font-weight: 700; color: var(--hit-text); }
 .ws-relaxed-note[hidden] { display: none; }
 

@@ -33,6 +33,8 @@ export function parsePuzzle(data) {
     holes: data.holes ?? [],
     onsets: [...data.onsets],
     ships: data.ships,
+    // 주제 (src/game/themes.js) — 주제가 생기기 전 퍼즐·사자성어엔 없음. themeShips = 그중 주제 단어인 함선 수
+    ...(data.theme && { theme: data.theme, themeShips: data.themeShips ?? data.ships.length }),
   };
 }
 

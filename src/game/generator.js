@@ -8,6 +8,7 @@
  *     4글자는 자연 발생이 드물어 모자라면 빈 칸에 미끼를 직접 심는다.
  *  5. 익스텐디드 기믹 (GDD §10) — 판 크기(7·10·12), '도넛 바다'의 구멍(함선이 피한다), '증원'이면 함선 +1척,
  *     '잠긴 칸'·'대각선 잠김'이면 가릴 칸을 정한다. 판이 8×8이 아니면 미끼 최소 개수를 박스 수에 비례해 맞춘다.
+ *  6. 주제 (src/game/themes.js) — 함명을 그 주제 단어에서 먼저 뽑고, 그 길이의 주제 단어를 다 쓰면 나머지만 전체에서
  */
 import { onsetsOf, CHO } from '../core/hangul.js';
 import { seedRng, nextFloat, shuffle, pick } from '../core/random.js';
@@ -114,13 +115,16 @@ function scaleDecoys(minDecoys, geo, holes) {
   }));
 }
 
-function attempt(pool, names, weights, minDecoys, fleet, geo, holes) {
+function attempt(pool, names, weights, minDecoys, fleet, geo, holes, themedNames = null) {
   const ships = placeFleet(fleet, geo, holes);
   if (!ships) return null;
 
   const used = new Set();
   for (const ship of ships) {
     let name;
+    // 주제 단어가 남아 있으면 거기서 — 다 썼으면 아래처럼 전체 후보에서
+    const themed = themedNames?.[ship.len].filter((w) => !used.has(w));
+    if (themed?.length) name = pick(themed);
     for (let tries = 0; tries < 50 && (!name || used.has(name)); tries++) name = pick(names[ship.len]);
     if (used.has(name)) return null;
     used.add(name);
@@ -156,11 +160,12 @@ function attempt(pool, names, weights, minDecoys, fleet, geo, holes) {
 /**
  * @param {string} seed  데일리는 'daily:YYYY-MM-DD', 자유 연습은 임의 문자열
  * @param {ReturnType<import('../core/dictionary.js').buildAnswerPool>} pool
- * @param {{ minDecoys?: object, fleet?: number[], gimmicks?: string[] }} [opts]  gimmicks — 익스텐디드 기믹 id 목록
- * @returns {{ size: number, gimmicks: string[], locked: number[], holes: number[], onsets: string[], ships: {len,r,c,dir,name}[] }}
+ * @param {{ minDecoys?: object, fleet?: number[], gimmicks?: string[], theme?: { id: string, words: Set<string> } | null }} [opts]
+ *   gimmicks — 익스텐디드 기믹 id 목록 · theme — 그날의 주제와 그 단어들 (없으면 주제 없는 판)
+ * @returns {{ size: number, gimmicks: string[], locked: number[], holes: number[], onsets: string[], ships: {len,r,c,dir,name}[], theme?: string }}
  *   fleet 은 기본 함대 — '증원' 기믹의 함선은 여기에 더해진다
  */
-export function generatePuzzle(seed, pool, { minDecoys = DEFAULT_MIN_DECOYS, fleet = FLEET, gimmicks = [] } = {}) {
+export function generatePuzzle(seed, pool, { minDecoys = DEFAULT_MIN_DECOYS, fleet = FLEET, gimmicks = [], theme = null } = {}) {
   seedRng(seed);
   try {
     const geo = boardOf(boardSizeFor(gimmicks));
@@ -170,12 +175,17 @@ export function generatePuzzle(seed, pool, { minDecoys = DEFAULT_MIN_DECOYS, fle
     const weights = onsetWeights(pool);
     // 함명 후보 — '단순한 단어'면 초급·중급 어휘만 (미끼 계산·빈 칸 초성은 전체 출제 풀 그대로)
     const names = gimmicks.includes('simple') ? simpleNames(pool) : pool.words;
+    // 주제 함명 후보 — 위 후보 중 주제 단어 ('단순한 단어'와 겹치면 둘 다 맞는 것만)
+    const themedNames = theme && Object.fromEntries([2, 3, 4].map((len) => [len, names[len].filter((w) => theme.words.has(w))]));
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      const puzzle = attempt(pool, names, weights, decoys, fullFleet, geo, holes);
+      const puzzle = attempt(pool, names, weights, decoys, fullFleet, geo, holes, themedNames);
       if (puzzle) {
         // 기믹 없는 판은 잠금 추첨을 하지 않는다 — 같은 시드의 스탠다드·사자성어 판이 예전과 똑같이 나오게
         const locked = gimmicks.length ? lockedCells(gimmicks, geo, holes) : [];
-        return { size: puzzle.size, gimmicks: [...gimmicks], locked, holes, onsets: puzzle.onsets, ships: puzzle.ships };
+        return {
+          size: puzzle.size, gimmicks: [...gimmicks], locked, holes, onsets: puzzle.onsets, ships: puzzle.ships,
+          ...(theme && { theme: theme.id }),
+        };
       }
     }
     throw new Error(`퍼즐 생성 실패 (seed=${seed})`);

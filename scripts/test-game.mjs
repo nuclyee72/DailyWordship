@@ -9,8 +9,10 @@ import { FLEET, MAX_GUESSES, computeState, validateGuess, resultEmoji, guessRule
 import { generatePuzzle, countDecoys, DEFAULT_MIN_DECOYS } from '../src/game/generator.js';
 import { GIMMICK_IDS, GIMMICK_PAIRS, dailyGimmicks, FOG_RATIO, fleetFor, holesFor, boardSizeFor, reserveNeed } from '../src/game/gimmicks.js';
 import { distBuckets, bucketIndexFor } from '../src/daily/storage.js';
-import { loadAnswerPool, loadGuessDictionary } from './lib/words.mjs';
+import { loadAnswerPool, loadGuessDictionary, loadThemeWords } from './lib/words.mjs';
 import { MODES } from '../src/game/modes.js';
+import { THEME_IDS, dailyTheme } from '../src/game/themes.js';
+import { shiftDateStr as shiftDate } from '../src/daily/dateUtil.js';
 
 const { boxCells, boxFromEndpoints, idxOf, allBoxes, boxLabel } = boardOf(8);
 
@@ -231,6 +233,58 @@ test('사자성어 퍼즐 30개 — 4칸 5척, 함명 전부 사자성어, 같�
   }
   const opts = { fleet: m.fleet, minDecoys: m.minDecoys };
   eq(generatePuzzle('daily-idiom:2026-09-24', idiomPool, opts), generatePuzzle('daily-idiom:2026-09-24', idiomPool, opts));
+});
+
+// ── 주제 ──
+const themeWords = loadThemeWords();
+test('주제 목록 — 11개 전부 데이터 있음, 단어는 전부 출제 풀 안, 길이별로 함대(증원 포함)를 채울 만큼', () => {
+  eq(Object.keys(themeWords).sort(), [...THEME_IDS].sort());
+  for (const id of THEME_IDS) {
+    for (const w of themeWords[id]) ok(pool.words[w.length]?.includes(w), `${id}: ${w} 출제 풀 밖`);
+    const byLen = (len) => [...themeWords[id]].filter((w) => w.length === len).length;
+    // 기본 함대 4·3·3·3·2·2 + 증원 1척까지 — 넉넉하게 한 바퀴(11일)마다 같은 함명이 덜 겹치게
+    ok(byLen(4) >= 4 && byLen(3) >= 8 && byLen(2) >= 10, `${id}: 길이별 ${[2, 3, 4].map(byLen).join('/')}`);
+  }
+});
+test('그날의 주제 — 결정적 · 모드마다 따로 · 11일에 11개 전부 · 이틀 연속 같은 주제 없음', () => {
+  eq(dailyTheme('2026-10-06', 'standard'), dailyTheme('2026-10-06', 'standard'));
+  for (const modeId of ['standard', 'extended']) {
+    let prev = null;
+    const counts = {};
+    for (let i = 0; i < 11 * 60; i++) {
+      const t = dailyTheme(shiftDate('2026-09-23', i), modeId);
+      ok(t !== prev, `${modeId} ${i}일째 연속 같은 주제`);
+      prev = t;
+      counts[t] = (counts[t] ?? 0) + 1;
+    }
+    eq(Object.values(counts), THEME_IDS.map(() => 60), `${modeId} 주제별 횟수`);
+  }
+  ok(Array.from({ length: 30 }, (_, i) => shiftDate('2026-10-01', i)).some((d) => dailyTheme(d, 'standard') !== dailyTheme(d, 'extended')), '두 모드가 늘 같음');
+});
+test('주제 퍼즐 — 함명 전부 그 주제 (기믹·증원 포함), 같은 시드 같은 판', () => {
+  for (const id of THEME_IDS) {
+    const theme = { id, words: themeWords[id] };
+    for (const gimmicks of [[], ['extra4', 'fog'], ['extra3', 'wide'], ['extra2', 'donut']]) {
+      const p = generatePuzzle(`theme-t:${id}:${gimmicks.join('+')}`, pool, { gimmicks, theme });
+      eq(p.theme, id);
+      for (const s of p.ships) ok(theme.words.has(s.name), `${id} ${gimmicks}: ${s.name} 주제 밖`);
+      eq(new Set(p.ships.map((s) => s.name)).size, p.ships.length, '함명 중복');
+    }
+  }
+  const theme = { id: '동물', words: themeWords['동물'] };
+  eq(generatePuzzle('daily:2026-10-06', pool, { theme }), generatePuzzle('daily:2026-10-06', pool, { theme }));
+});
+test('주제 + 단순한 단어 — 함명은 언제나 단순한 단어, 주제와 겹치는 게 모자라면 그 자리만 일반 단어', () => {
+  for (const id of THEME_IDS) {
+    const theme = { id, words: themeWords[id] };
+    const p = generatePuzzle(`theme-simple:${id}`, pool, { gimmicks: ['simple', 'fog'], theme });
+    for (const s of p.ships) ok(pool.simple.has(s.name), `${id}: ${s.name} 단순한 단어 아님`);
+    for (const len of [2, 3, 4]) {
+      const avail = [...theme.words].filter((w) => w.length === len && pool.simple.has(w)).length;
+      const ships = p.ships.filter((s) => s.len === len);
+      eq(ships.filter((s) => theme.words.has(s.name)).length, Math.min(avail, ships.length), `${id} ${len}칸 주제 함선 수`);
+    }
+  }
 });
 
 // ── 익스텐디드 기믹 (GDD §10) ──

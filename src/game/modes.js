@@ -1,6 +1,7 @@
 /**
  * modes.js — 게임 모드. 형제 게임(DailySudoku·DailyTrilateral)과 같은 스탠다드/익스텐디드에
  * 워드십만의 사자성어를 더해 세 가지를 둔다. 데일리 파일·저장 키·통계·공유 문구가 모드별로 따로다.
+ * themed — 매일 주제(동물·음식·…)를 하나 골라 함명을 그 주제 단어로 (src/game/themes.js). 사자성어는 주제 없음
  */
 import { FLEET, MAX_GUESSES } from './game.js';
 import { DEFAULT_MIN_DECOYS } from './generator.js';
@@ -23,6 +24,7 @@ export const MODES = {
     fileName: (date) => date,   // daily/<date>.json
     minDecoys: DEFAULT_MIN_DECOYS,
     gimmicks: false,
+    themed: true,
     distBounds: topBounds(MAX_GUESSES),
   },
   extended: {
@@ -36,6 +38,7 @@ export const MODES = {
     fileName: (date) => `extended-${date}`,
     minDecoys: DEFAULT_MIN_DECOYS,
     gimmicks: true,             // 그날의 기믹 2개 — src/game/gimmicks.js dailyGimmicks
+    themed: true,
     distBounds: topBounds(35),
   },
   idiom: {
@@ -50,6 +53,7 @@ export const MODES = {
     // 2·3칸 함선이 없으니 4칸 미끼만 본다. 자연 발생은 판당 중앙값 7개 — 모자라면 생성기가 심는다
     minDecoys: { 2: 0, 3: 0, 4: 5 },
     gimmicks: false,
+    themed: false,
     distBounds: topBounds(20),
   },
 };

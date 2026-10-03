@@ -7,6 +7,7 @@
  *   node scripts/generate-daily.mjs                # KST 오늘 + 앞으로 3일 (버퍼)
  *   node scripts/generate-daily.mjs 2026-09-24     # 특정 날짜
  *   node scripts/generate-daily.mjs 2026-09-24 30  # 2026-09-24부터 30일치
+ *   스탠다드·익스텐디드는 그날의 주제(src/game/themes.js)를 골라 함명을 그 주제 단어로 뽑고 theme·themeShips에 담는다.
  *
  * 이미 파일이 있으면 건너뛴다(멱등) — 단어 데이터가 나중에 바뀌어도 이미 커밋된 날짜의 퍼즐은
  * 절대 안 바뀌어야 하기 때문(지난 퍼즐 아카이브가 그 날 그 퍼즐을 그대로 다시 보여줘야 함).
@@ -18,13 +19,15 @@ import { fileURLToPath } from 'node:url';
 
 import { generatePuzzle } from '../src/game/generator.js';
 import { dateStrKST, shiftDateStr } from '../src/daily/dateUtil.js';
-import { loadAnswerPool } from './lib/words.mjs';
+import { loadAnswerPool, loadThemeWords } from './lib/words.mjs';
 import { MODES } from '../src/game/modes.js';
 import { dailyGimmicks } from '../src/game/gimmicks.js';
+import { dailyTheme } from '../src/game/themes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DAILY_DIR = path.join(__dirname, '..', 'daily');
 const pools = Object.fromEntries(Object.keys(MODES).map((id) => [id, loadAnswerPool(id)]));
+const themeWords = loadThemeWords();
 
 async function generateForDate(dateStr, mode) {
   const fileName = mode.fileName(dateStr);
@@ -34,18 +37,23 @@ async function generateForDate(dateStr, mode) {
     return false;
   }
   const gimmicks = mode.gimmicks ? dailyGimmicks(dateStr) : [];
-  const puzzle = generatePuzzle(`${mode.seedPrefix}:${dateStr}`, pools[mode.id], { fleet: mode.fleet, minDecoys: mode.minDecoys, gimmicks });
+  const themeId = mode.themed ? dailyTheme(dateStr, mode.id) : null;
+  const theme = themeId && { id: themeId, words: themeWords[themeId] };
+  const puzzle = generatePuzzle(`${mode.seedPrefix}:${dateStr}`, pools[mode.id], { fleet: mode.fleet, minDecoys: mode.minDecoys, gimmicks, theme });
+  // 그 길이의 주제 단어가 모자라 일반 단어로 채운 함선이 있을 수 있어서, 몇 척이 주제 함선인지도 담는다
+  const themeShips = theme ? puzzle.ships.filter((s) => theme.words.has(s.name)).length : 0;
   const payload = {
     date: dateStr,
     // 기믹 없는 모드는 예전 파일 형식 그대로 (8×8 · 잠긴 칸 없음)
     ...(gimmicks.length ? { gimmicks, size: puzzle.size, locked: puzzle.locked, holes: puzzle.holes } : {}),
+    ...(theme ? { theme: theme.id, themeShips } : {}),
     onsets: puzzle.onsets.join(''),
     ships: puzzle.ships.map(({ len, r, c, dir, name }) => ({ len, r, c, dir, name })),
     generatedAt: new Date().toISOString(),
   };
   await mkdir(DAILY_DIR, { recursive: true });
   await writeFile(outPath, JSON.stringify(payload) + '\n', 'utf8');
-  console.log(`✓ ${fileName} 저장 (${payload.ships.map((s) => s.name).join(', ')}${gimmicks.length ? ` · 기믹 ${gimmicks.join('+')}` : ''})`);
+  console.log(`✓ ${fileName} 저장 (${payload.ships.map((s) => s.name).join(', ')}${gimmicks.length ? ` · 기믹 ${gimmicks.join('+')}` : ''}${theme ? ` · 주제 ${theme.id} ${themeShips}/${payload.ships.length}척` : ''})`);
   return true;
 }
 
