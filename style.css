@@ -508,7 +508,8 @@ html, body {
 .game-screen.hidden { display: none; }
 
 .ws-game {
-  --board: min(calc(100vw - 48px), 440px, max(248px, calc(100dvh - 330px)));
+  --top-extra: 0px; /* 주제 줄(.ws-theme-label)이 있으면 그 높이만큼 판을 줄인다 — .has-theme */
+  --board: min(calc(100vw - 48px), 440px, max(248px, calc(100dvh - 330px - var(--top-extra))));
   position: fixed;
   inset: 0;
   display: flex;
@@ -597,9 +598,35 @@ html, body {
 .ws-fleet-ship.is-done i { background: var(--cell-selected); box-shadow: inset 0 0 0 1.5px var(--text-input); }
 .ws-fleet-ship.is-answer i { color: rgba(var(--text-given-rgb), 0.6); box-shadow: inset 0 0 0 1.5px rgba(var(--text-given-rgb), 0.35); }
 .ws-mode-label { font-size: 12px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.5); white-space: nowrap; }
-/* 오늘의 주제 — 모드·날짜 표시 바로 왼쪽 */
-.ws-theme-label { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text-input); white-space: nowrap; }
+/* 오늘의 주제 — 함대 현황 위 첫 줄 전체. '주제 🌿 식물 · 함선 6척 모두 이 주제 단어' (좁으면 설명이 다음 줄로) */
+.ws-theme-label {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 8px;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
 .ws-theme-label[hidden] { display: none; }
+.ws-game.has-theme { --top-extra: 38px; } /* 주제 줄 32px + 줄 간격 6px */
+.ws-theme-tag {
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--text-input);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+.ws-theme-label strong { font-weight: 800; color: var(--text-input); white-space: nowrap; }
+.ws-theme-note { font-size: 12px; font-weight: 600; color: rgba(var(--text-given-rgb), 0.6); white-space: nowrap; }
 .ws-relaxed-note { flex: 1 0 100%; order: 3; margin: 0; font-size: 11px; font-weight: 700; color: var(--hit-text); }
 .ws-relaxed-note[hidden] { display: none; }
 
@@ -1011,7 +1038,7 @@ html, body {
 @media (min-width: 760px) {
   .ws-game {
     --side: 300px;
-    --board: min(calc(100dvh - 150px), 520px, calc(100vw - var(--side) - 120px));
+    --board: min(calc(100dvh - 150px - var(--top-extra)), 520px, calc(100vw - var(--side) - 120px));
     display: grid;
     grid-template-columns: auto var(--side);
     grid-template-rows: auto auto auto;
@@ -1037,7 +1064,7 @@ html, body {
 /* 넓은 화면에서도 가운데 정렬한 판 왼쪽 여백이 손잡이(34px)보다 좁아지는 폭(760~1000px)이 있어 같이 비운다 */
 @media (min-width: 760px) {
   .ws-game.has-sidebar {
-    --board: min(calc(100dvh - 150px), 520px, calc(100vw - var(--side) - 168px));
+    --board: min(calc(100dvh - 150px - var(--top-extra)), 520px, calc(100vw - var(--side) - 168px));
     padding-left: 48px;
   }
 }

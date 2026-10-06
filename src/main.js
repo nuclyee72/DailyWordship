@@ -260,10 +260,23 @@ function renderGame() {
   guessesLeftEl.parentElement.classList.toggle('is-low', playing && left <= 3);
   const where = session.kind === 'free' ? '자유 연습' : session.kind === 'archive' ? `${session.date} · 지난 퍼즐` : session.date;
   modeLabelEl.textContent = `${session.mode.label} · ${where}`;
-  // 오늘의 주제 — 주제 단어가 모자라 일반 단어로 채운 함선이 있으면 몇 척이 주제인지도
+  // 오늘의 주제 — 함대 위 한 줄. 주제 단어가 모자라 일반 단어로 채운 함선이 있으면 몇 척이 주제인지도
   const { theme, themeShips, ships } = session.puzzle;
   themeLabelEl.hidden = !theme;
-  if (theme) themeLabelEl.textContent = `${themeLabel(theme)}${themeShips < ships.length ? ` (${ships.length}척 중 ${themeShips}척)` : ''}`;
+  gameEl.classList.toggle('has-theme', !!theme);
+  if (theme) {
+    const tag = document.createElement('span');
+    tag.className = 'ws-theme-tag';
+    tag.textContent = '주제';
+    const name = document.createElement('strong');
+    name.textContent = themeLabel(theme);
+    const note = document.createElement('span');
+    note.className = 'ws-theme-note';
+    note.textContent = themeShips < ships.length
+      ? `함선 ${ships.length}척 중 ${themeShips}척이 이 주제 단어`
+      : `함선 ${ships.length}척 모두 이 주제 단어`;
+    themeLabelEl.replaceChildren(tag, name, note);
+  }
 
   renderFleet();
   renderGimmickStatus();
